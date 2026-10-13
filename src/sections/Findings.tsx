@@ -29,11 +29,11 @@ function Finding({
   return (
     <article className="border-t-2 border-ink pt-6">
       <div className="grid gap-x-12 gap-y-8 lg:grid-cols-12">
-        <div className="lg:col-span-5">
+        <div className="min-w-0 lg:col-span-5">
           <h3 className="cut-semi text-h3 font-semibold">{title}</h3>
           <div className="mt-6">{figure}</div>
         </div>
-        <div className="prose-body lg:col-span-7">{children}</div>
+        <div className="prose-body min-w-0 lg:col-span-7">{children}</div>
       </div>
       <figure className="mt-10">
         {chart}

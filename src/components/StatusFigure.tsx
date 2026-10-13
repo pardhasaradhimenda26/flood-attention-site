@@ -80,9 +80,15 @@ export function StatusLine({ id, label, className = '' }: { id: string; label?: 
           {fmtValue(m!.value)}
           {unitText(m!)}
         </span>
-      )}{' '}
-      <span className="font-semibold">{STATUS_WORD[status].toLowerCase()}</span>
-      {status === 'qualified' && m?.qualifier ? <span>: {minus(m.qualifier)}</span> : null}
+      )}
+      {/* a pending field already says "pending"; the others name their status */}
+      {status !== 'pending' && (
+        <>
+          {' '}
+          <span className="font-semibold">{STATUS_WORD[status].toLowerCase()}</span>
+          {status === 'qualified' && m?.qualifier ? <span>: {minus(m.qualifier)}</span> : null}
+        </>
+      )}
     </p>
   )
 }

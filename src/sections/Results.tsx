@@ -127,8 +127,8 @@ export function Results() {
 
       {gm && gm.status !== 'pending' ? (
         <div className="mt-14 grid gap-x-12 gap-y-6 lg:grid-cols-12">
-          <StatusFigure id="gat_vs_gcn" size="compact" className="lg:col-span-4" caption="GAT over GCN, all eight basins pooled" />
-          <div className="max-w-measure space-y-3 lg:col-span-8">
+          <StatusFigure id="gat_vs_gcn" size="compact" className="min-w-0 lg:col-span-4" caption="GAT over GCN, all eight basins pooled" />
+          <div className="min-w-0 max-w-measure space-y-3 lg:col-span-8">
             <p className="text-lead text-ink">
               {tpl(resultsCopy.gatStatement, {
                 imp: mv('gat_vs_gcn'),
@@ -152,8 +152,8 @@ export function Results() {
         <div className="mt-16 border-t-hair border-ink pt-6">
           <h3 className="text-h3">{resultsCopy.heldHeading}</h3>
           <div className="mt-6 grid gap-x-12 gap-y-6 lg:grid-cols-12">
-            <StatusFigure id="gat_vs_gcn_held" size="compact" className="lg:col-span-4" caption="GAT over GCN, held-out basins only" />
-            <div className="max-w-measure space-y-3 lg:col-span-8">
+            <StatusFigure id="gat_vs_gcn_held" size="compact" className="min-w-0 lg:col-span-4" caption="GAT over GCN, held-out basins only" />
+            <div className="min-w-0 max-w-measure space-y-3 lg:col-span-8">
               <p className="text-body text-ink">
                 {tpl(resultsCopy.heldStatement, {
                   held: mv('gat_vs_gcn_held'),
@@ -174,8 +174,8 @@ export function Results() {
       <p className="mt-3 max-w-measure text-body text-ink-soft">{resultsCopy.ablationIntro}</p>
       {um && und && um.status !== 'pending' && (
         <div className="mt-6 grid gap-x-12 gap-y-6 lg:grid-cols-12">
-          <StatusFigure id="undirected_gain" size="compact" className="lg:col-span-4" caption="Undirected graph vs the directed reference" />
-          <p className="max-w-measure text-body lg:col-span-8">
+          <StatusFigure id="undirected_gain" size="compact" className="min-w-0 lg:col-span-4" caption="Undirected graph vs the directed reference" />
+          <p className="min-w-0 max-w-measure text-body lg:col-span-8">
             {tpl(resultsCopy.undirected, {
               gain: fmt(und.vsRefPct ?? 0, 1, true),
               betterIn: und.betterIn ?? '—',

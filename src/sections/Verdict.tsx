@@ -22,7 +22,7 @@ export function Verdict() {
       <p className="max-w-measure text-lead text-ink">{verdict.intro}</p>
 
       <div className="mt-14 grid gap-x-12 gap-y-16 lg:grid-cols-12">
-        <article aria-labelledby="verdict-acc" className="border-t-2 border-ink pt-5 lg:col-span-5">
+        <article aria-labelledby="verdict-acc" className="min-w-0 border-t-2 border-ink pt-5 lg:col-span-5">
           <h3 id="verdict-acc" className="cut-semi text-h3 font-semibold">{acc.title}</h3>
           <p className="mt-2 max-w-narrow text-small text-ink-soft">{acc.claim}</p>
           <StatusFigure id="gat_vs_gcn" size="figure" caption={acc.caption} className="mt-8" />
@@ -32,12 +32,12 @@ export function Verdict() {
           </div>
         </article>
 
-        <article aria-labelledby="verdict-att" className="border-t-2 border-ink pt-5 lg:col-span-7">
+        <article aria-labelledby="verdict-att" className="min-w-0 border-t-2 border-ink pt-5 lg:col-span-7">
           <h3 id="verdict-att" className="cut-semi text-h3 font-semibold">{att.title}</h3>
           <p className="mt-2 max-w-narrow text-small text-ink-soft">{att.claim}</p>
           <div className="mt-8 grid gap-x-8 gap-y-8 sm:grid-cols-2">
             {VERDICT_ROWS.map((r) => (
-              <StatusFigure key={r.id} id={r.id} size="reading" caption={att.captions[r.id]} />
+              <StatusFigure key={r.id} id={r.id} size="reading" caption={att.captions[r.id]} className="min-w-0" />
             ))}
           </div>
           <figure className="mt-10">
