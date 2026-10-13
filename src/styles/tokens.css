@@ -1,0 +1,63 @@
+/*
+  Design tokens. Single source of truth for colour: Tailwind reads these through
+  var(), and the WebGL scenes read them at runtime with readToken().
+
+  Two grounds in opposition:
+    abyss  — the deep end of a bathymetric ramp; where the 3D lives
+    paper  — printed nautical-chart blue-grey; where prose and data live
+
+  The water ramp (w1 shallow → w5 deep) encodes depth and discharge everywhere.
+  --signal is chart magenta and means "attention weight". Nothing else uses it.
+*/
+:root {
+  --abyss: #15303c;
+  --abyss-raised: #1d3c4a;
+  --abyss-line: #2f5262;
+
+  --paper: #e2e9eb;
+  --paper-inset: #d5dfe2;
+  --paper-line: #b4c5cb;
+
+  --ink: #132530;
+  --ink-soft: #3f5964;
+  --foam: #dce7ea;
+  --foam-soft: #9db6bf;
+  --graticule: #9fb3ba;
+
+  --w1: #bfdce4;
+  --w2: #86b8c8;
+  --w3: #4f90a8;
+  --w4: #2c6a84;
+  --w5: #1a4a5f;
+
+  --signal: #c2185b;
+  --signal-lift: #ec5c9b;
+
+  --hatch: repeating-linear-gradient(
+    -45deg,
+    transparent 0 5px,
+    rgb(63 89 100 / 0.16) 5px 6px
+  );
+}
+
+.ground-abyss {
+  --fg: var(--foam);
+  --fg-soft: var(--foam-soft);
+  --rule: var(--abyss-line);
+  --focus: #f4fafb;
+  --focus-halo: var(--abyss);
+  --signal-on: var(--signal-lift);
+  background-color: var(--abyss);
+  color: var(--foam);
+}
+
+.ground-paper {
+  --fg: var(--ink);
+  --fg-soft: var(--ink-soft);
+  --rule: var(--paper-line);
+  --focus: var(--ink);
+  --focus-halo: var(--paper);
+  --signal-on: var(--signal);
+  background-color: var(--paper);
+  color: var(--ink);
+}

@@ -1,0 +1,134 @@
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import './tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    scroll-padding-top: 1.5rem;
+  }
+  body {
+    @apply font-sans text-body antialiased;
+    font-stretch: 100%;
+    font-variation-settings: 'wdth' 100;
+    margin: 0;
+    overflow-x: hidden;
+  }
+  h1, h2, h3 {
+    margin: 0;
+    font-weight: 620;
+  }
+  p { margin: 0; }
+  :focus { outline: none; }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 3px;
+    box-shadow: 0 0 0 6px var(--focus-halo);
+    border-radius: 1px;
+  }
+  ::selection {
+    background: var(--w2);
+    color: var(--ink);
+  }
+  a {
+    color: inherit;
+    text-decoration-line: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+    text-decoration-color: var(--fg-soft);
+  }
+  a:hover { text-decoration-color: currentColor; }
+  table { border-collapse: collapse; }
+}
+
+@layer components {
+  /* Condensed display cut: same family, narrower width axis. */
+  .cut-condensed {
+    font-stretch: 72%;
+    font-variation-settings: 'wdth' 72;
+  }
+  .cut-semi {
+    font-stretch: 86%;
+    font-variation-settings: 'wdth' 86;
+  }
+  .num {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'zero' 0;
+  }
+  .prose-body > * + * { margin-top: 1em; }
+  .prose-body { @apply max-w-measure; }
+  .prose-body em { font-style: italic; }
+  .prose-body strong { font-weight: 640; }
+
+  /* Equations: MathML set in Plex Mono, identifiers in (synthesised) italic. */
+  .eq math {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-size: 1.2rem;
+    text-align: left;
+    margin: 0;
+  }
+  .eq math * { text-transform: none; }
+  .eq mi { font-style: italic; }
+  .eq mtext { font-style: normal; }
+
+  .pending-hatch {
+    background-image: var(--hatch);
+  }
+
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    @apply sr-only;
+  }
+
+  /* Range input in the house style: a hairline track and a gauge-staff thumb. */
+  .range {
+    -webkit-appearance: none;
+    appearance: none;
+    background: transparent;
+    height: 2rem;
+    cursor: pointer;
+  }
+  .range::-webkit-slider-runnable-track {
+    height: 1px;
+    background: var(--fg-soft);
+  }
+  .range::-moz-range-track {
+    height: 1px;
+    background: var(--fg-soft);
+  }
+  .range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 0.625rem;
+    height: 1.375rem;
+    margin-top: -0.69rem;
+    background: var(--fg);
+    border: 2px solid var(--focus-halo);
+    border-radius: 1px;
+  }
+  .range::-moz-range-thumb {
+    width: 0.5rem;
+    height: 1.25rem;
+    background: var(--fg);
+    border: 2px solid var(--focus-halo);
+    border-radius: 1px;
+  }
+  .range:focus-visible {
+    box-shadow: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
