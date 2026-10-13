@@ -219,7 +219,7 @@ export function Dataset() {
         </h3>
         <p className="mt-3 max-w-measure text-body text-ink-soft">{dataset.xs.body}</p>
         <div className="mt-8 grid gap-10 lg:grid-cols-12">
-          <div className="lg:col-span-7">
+          <div className="min-w-0 lg:col-span-7">
             <Profile />
             <LazyMount className="mt-6 h-section3d border-hair border-paper-line" placeholder={<div className="h-full bg-abyss" />}>
               <Suspense fallback={<div className="h-full bg-abyss" />}>
@@ -236,7 +236,7 @@ export function Dataset() {
             </LazyMount>
             <p className="mt-2 text-micro text-ink-soft">3D view: vertical scale ×4. Drag sideways to turn it.</p>
           </div>
-          <div className="lg:col-span-5">
+          <div className="min-w-0 lg:col-span-5">
             <Readouts />
           </div>
         </div>
