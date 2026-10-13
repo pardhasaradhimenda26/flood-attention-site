@@ -3,40 +3,55 @@
 generate_data.py — emit src/data/network.ts and src/data/results.ts.
 
 Standalone: Python 3.9+ standard library only. No numpy, no pandas, no site
-dependencies. Reads the thesis repo's outputs and writes two TypeScript files
-that the site imports. Both are generated; never hand-edit them.
+dependencies. Both output files are generated; never hand-edit them.
 
     python scripts/generate_data.py                      # ../Machine Learning Project
     python scripts/generate_data.py "D:/thesis/repo"     # explicit path
     python scripts/generate_data.py --basin basin_03     # hero/attention basin
+    python scripts/generate_data.py --results-only       # npm run regen-data
 
-Sources, when present:
-    flood_routing_dataset/nodes.csv, edges.csv, basins.csv, timeseries.csv
-    results/<run>/metrics.csv, metrics_per_seed.csv, attention.npz,
-                  attention_scores.csv, attention_seed_consistency.csv
-    results/ablations.csv
-    RESULTS.md                      (only to confirm recorded constants exist)
+Two stages.
 
-Status rule: a metric is 'verified' only if the file it is computed from exists
-and contains the rows it needs. A missing run, a missing model inside a run, or
-a recorded constant that no longer appears in RESULTS.md makes it 'pending'.
+1. Sync (needs the thesis repo). Copies every input results.ts depends on into
+   provenance/ — RESULTS.md, the dataset's node/edge/basin tables, and for each
+   run its run.json, config.yaml and metric CSVs — and writes
+   provenance/MANIFEST.json with run IDs, config hashes, the dataset version
+   and a SHA-256 for every file. network.ts is written in this stage too, since
+   it needs timeseries.csv and attention.npz, which are too large to commit.
 
-If the dataset CSVs are absent, network.ts is generated deterministically from
-the seeded spec in the site brief (section 6.1) and results.ts is populated from
-the numbers verified in the brief (section 8), with GAT-vs-GCN left pending.
-The site builds and renders completely in either mode.
+2. Results (needs only provenance/). Every number in results.ts is computed
+   from, or read out of, the committed files. --results-only runs this stage
+   alone and is byte-for-byte reproducible: no timestamps, seeded bootstrap.
+
+Every metric carries:
+    status      'verified'  measured, reproducible from provenance/
+                'qualified' measured, with a limitation stated in `qualifier`
+                'pending'   not measured
+    derivation  'recomputed' from raw outputs here, or 'read' from RESULTS.md
+    run         the run ID behind it (or the script and dataset version, for
+                model-free tests that write no run directory), and configHash
+    interval    for comparisons: 95% percentile interval from a clustered
+                bootstrap that resamples basins and seeds, not (basin, seed)
+                pairs, because pairs that share a basin or a seed are not
+                independent
+
+A recorded constant that no longer appears in RESULTS.md becomes 'pending'.
+If the dataset CSVs are absent, network.ts falls back to the seeded spec in the
+site brief (section 6.1); results.ts still comes from provenance/.
 """
 
 import argparse
 import ast
 import csv
 import datetime as _dt
-import io
+import hashlib
 import json
 import math
 import os
 import random
+import shutil
 import struct
+import subprocess
 import sys
 import zipfile
 from array import array
@@ -45,12 +60,22 @@ from collections import defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 SITE = os.path.dirname(HERE)
 OUT_DIR = os.path.join(SITE, "src", "data")
+PROV = os.path.join(SITE, "provenance")
 
 HEADER = """// GENERATED FILE — DO NOT HAND-EDIT.
 // Written by scripts/generate_data.py on {when}.
 // Mode: {mode}. Source: {source}
 // Re-run the script to update. Any manual change here is overwritten.
 """
+
+RESULTS_HEADER = """// GENERATED FILE — DO NOT HAND-EDIT.
+// Written by scripts/generate_data.py from the committed inputs in provenance/
+// (MANIFEST.json sha256 {digest}). Reproduce with: npm run regen-data
+// Any manual change here is overwritten, and CI fails if this file drifts.
+"""
+
+BOOT_DRAWS = 10000
+BOOT_SEED = 20260830
 
 
 # ---------------------------------------------------------------- utilities
@@ -614,146 +639,409 @@ def attention_for(run, net):
     }
 
 
+# ------------------------------------------------------------- provenance
+# Stage 1 copies inputs out of the thesis repo; stage 2 reads only these.
+
+WEEK4_RUNS = [
+    # Named in RESULTS.md Week 4 as the source of its numbers.
+    "20260830-145849-092b9d652a",            # headline, 3 seeds
+    "20260830-150156-cd34e687df-robustness",  # 8-seed robustness
+    "20260830-150740-092b9d652a-repro",       # reproducibility re-run
+]
+RUN_FILES = ["run.json", "config.yaml", "metrics.csv", "metrics_per_seed.csv",
+             "attention_scores.csv", "attention_seed_consistency.csv"]
+DATASET_FILES = ["nodes.csv", "edges.csv", "basins.csv"]
+
+
+def sha256_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def git_head(repo):
+    try:
+        out = subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
+        return out.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def sync_provenance(repo):
+    """Copy every input results.ts needs into provenance/ and write MANIFEST.json."""
+    runs_all = find_runs(repo)
+    main, _ = pick_main_run(runs_all)
+    if not main:
+        raise SystemExit("no run with persistence, MLP and GCN under results/")
+    ab_csv = os.path.join(repo, "results", "ablations.csv")
+    abl_ids = [x["run"] for x in read_csv(ab_csv)] if os.path.exists(ab_csv) else []
+    wanted = [(os.path.basename(main), "main")]
+    wanted += [(r_, "ablation") for r_ in abl_ids if r_ != os.path.basename(main)]
+    wanted += [(r_, "week4") for r_ in WEEK4_RUNS]
+
+    if os.path.isdir(PROV):
+        shutil.rmtree(PROV)
+    os.makedirs(os.path.join(PROV, "runs"))
+    os.makedirs(os.path.join(PROV, "dataset"))
+
+    def copy(src, rel):
+        dst = os.path.join(PROV, rel)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        # Normalise line endings so the committed copy hashes the same on every OS.
+        with open(src, "rb") as fh:
+            data = fh.read().replace(b"\r\n", b"\n")
+        with open(dst, "wb") as fh:
+            fh.write(data)
+
+    copy(os.path.join(repo, "RESULTS.md"), "RESULTS.md")
+    if os.path.exists(ab_csv):
+        copy(ab_csv, "ablations.csv")
+    ds = os.path.join(repo, "flood_routing_dataset")
+    for f in DATASET_FILES:
+        copy(os.path.join(ds, f), f"dataset/{f}")
+
+    runs = []
+    for run_id, role in wanted:
+        src = os.path.join(repo, "results", run_id)
+        if not os.path.isdir(src):
+            print(f"  [sync] run {run_id} missing; skipped")
+            continue
+        for f in RUN_FILES:
+            if os.path.exists(os.path.join(src, f)):
+                copy(os.path.join(src, f), f"runs/{run_id}/{f}")
+        with open(os.path.join(src, "run.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        runs.append({
+            "id": run_id, "role": role, "configHash": meta.get("config_hash"),
+            "configPath": meta.get("config_path"), "seeds": meta.get("seeds"),
+            "models": meta.get("models"), "python": meta.get("python"), "torch": meta.get("torch"),
+        })
+
+    # Dataset version: content hash of all four tables, timeseries included,
+    # so a regenerated dataset is a different version even if the graph is not.
+    ds_hashes = {f: sha256_file(os.path.join(ds, f)) for f in DATASET_FILES + ["timeseries.csv"]}
+    ds_version = hashlib.sha256("".join(ds_hashes[k] for k in sorted(ds_hashes)).encode()).hexdigest()[:10]
+    gen = os.path.join(repo, "data", "generate_flood_dataset.py")
+
+    files = {}
+    for root, _, names in os.walk(PROV):
+        for n in sorted(names):
+            p = os.path.join(root, n)
+            rel = os.path.relpath(p, PROV).replace("\\", "/")
+            if rel != "MANIFEST.json":
+                files[rel] = sha256_file(p)
+    manifest = {
+        "about": "Inputs behind src/data/results.ts. Copied from the thesis repository by "
+                 "scripts/generate_data.py; reproduce results.ts with `npm run regen-data`.",
+        "thesisCommit": git_head(repo),
+        "dataset": {
+            "version": ds_version,
+            "generator": "data/generate_flood_dataset.py",
+            "generatorSha256": sha256_file(gen) if os.path.exists(gen) else None,
+            "files": ds_hashes,
+            "note": "timeseries.csv is not committed (54 MB); its hash pins the version.",
+        },
+        "runs": runs,
+        "files": dict(sorted(files.items())),
+    }
+    with open(os.path.join(PROV, "MANIFEST.json"), "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(manifest, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
+    print(f"synced provenance/: {len(runs)} runs, {len(files)} files, dataset {ds_version}")
+
+
+def load_manifest():
+    p = os.path.join(PROV, "MANIFEST.json")
+    if not os.path.exists(p):
+        return None
+    with open(p, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def check_manifest(manifest):
+    """Refuse to build from inputs that differ from what the manifest pins."""
+    bad = []
+    for rel, digest in manifest["files"].items():
+        p = os.path.join(PROV, rel)
+        if not os.path.exists(p) or sha256_file(p) != digest:
+            bad.append(rel)
+    if bad:
+        raise SystemExit("provenance/ does not match MANIFEST.json: " + ", ".join(bad))
+
+
+# ------------------------------------------------------ clustered bootstrap
+# (basin, seed) cells share basins and seeds, so they are not 24 independent
+# samples. Resample basins and seeds independently, with replacement, and
+# recompute the statistic on the crossed resample. Seeded and using only
+# random(), which is stable across Python versions and platforms.
+
+def boot_interval(stat, basins, seeds, draws=BOOT_DRAWS, seed=BOOT_SEED):
+    rng = random.Random(seed)
+    nb, ns = len(basins), len(seeds)
+    out = []
+    for _ in range(draws):
+        bs = [basins[int(rng.random() * nb)] for _ in range(nb)]
+        ss = [seeds[int(rng.random() * ns)] for _ in range(ns)] if ns else []
+        v = stat(bs, ss)
+        if v is not None and math.isfinite(v):
+            out.append(v)
+    out.sort()
+    n = len(out)
+    lo, hi = out[int(0.025 * n)], out[min(n - 1, int(math.ceil(0.975 * n)) - 1)]
+    return lo, hi
+
+
+def interval(lo, hi, nb, ns, what="basins and seeds"):
+    method = (f"clustered bootstrap, {BOOT_DRAWS} draws resampling {nb} basins"
+              + (f" and {ns} seeds" if ns else "") + " with replacement; percentile")
+    return {"lo": r(lo, 3), "hi": r(hi, 3), "level": 0.95, "method": method}
+
+
+def fmt_ci(iv, unit=""):
+    def s(v):
+        return ("+" if v > 0 else "−" if v < 0 else "") + f"{abs(v):.1f}" + unit
+    return f"95% interval {s(iv['lo'])} to {s(iv['hi'])}"
+
+
+def fmt_ci_r(iv):
+    def s(v):
+        return ("+" if v > 0 else "−" if v < 0 else "") + f"{abs(v):.3f}"
+    return f"95% interval {s(iv['lo'])} to {s(iv['hi'])}"
+
+
+def unpaired_seed_interval(a, b, stat, draws=BOOT_DRAWS, seed=BOOT_SEED):
+    """Two independent groups of seeds (Week 4: separate models, no pairing)."""
+    rng = random.Random(seed)
+    out = []
+    for _ in range(draws):
+        ra = [a[int(rng.random() * len(a))] for _ in a]
+        rb = [b[int(rng.random() * len(b))] for _ in b]
+        out.append(stat(ra, rb))
+    out.sort()
+    n = len(out)
+    return out[int(0.025 * n)], out[min(n - 1, int(math.ceil(0.975 * n)) - 1)]
+
+
 # ---------------------------------------------------------------- results
 
 class Metrics:
     def __init__(self):
         self.items = []
 
-    def add(self, id, label, value, unit=None, status="verified", note=None, group="misc", source=None):
-        m = {"id": id, "label": label, "value": value, "status": status, "group": group}
-        if unit:
-            m["unit"] = unit
-        if note:
-            m["note"] = note
-        if source:
-            m["source"] = source
+    def add(self, id, label, value, unit=None, status="verified", *, group, derivation, source=None,
+            run=None, config_hash=None, qualifier=None, note=None, interval=None, supersedes=None):
+        if status == "qualified" and not qualifier:
+            raise ValueError(f"{id}: a qualified metric needs its qualifier")
+        m = {"id": id, "label": label, "value": value, "status": status, "group": group,
+             "derivation": derivation}
+        for k, v in (("unit", unit), ("qualifier", qualifier), ("note", note), ("source", source),
+                     ("run", run), ("configHash", config_hash), ("interval", interval),
+                     ("supersedes", supersedes)):
+            if v is not None:
+                m[k] = v
         self.items.append(m)
 
 
-def results_md_has(repo, needle):
-    p = os.path.join(repo, "RESULTS.md")
+def results_md_has(needle):
+    p = os.path.join(PROV, "RESULTS.md")
     if not os.path.exists(p):
         return False
     with open(p, encoding="utf-8") as fh:
         return needle in fh.read()
 
 
-# Recorded constants: numbers produced by scripts that print rather than write
-# CSVs (gate test, Week 4 information test, untrained-model check, attention
-# correlates). Each is verified only while RESULTS.md still contains the value.
-RECORDED = [
-    # id, label, value, unit, group, needle, section, note
-    ("real_sections", "Real network: surveyed cross-sections", 28, None, "real", "4 of 28", "W5.1 A1", "H1–H4 network"),
-    ("real_gauges", "Real network: gauges", 4, None, "real", "4 of 28", "W5.1 A1", "H1–H4"),
-    ("real_ungauged", "Real network: cross-sections without a gauge", 86, "%", "real", "4 of 28", "W5.1 A1", "24 of 28"),
-    ("repro", "Reproducibility re-run of a headline table", "identical", None, "rigor", "reproduced the headline table", "Week 4 §8", "metrics.csv byte-identical to the original run"),
-    ("mass_balance", "Mass balance, all basins", "1.0000", None, "dataset", "1.0000 in all 8 basins", "W5.1 A5", None),
-    ("storm_kernel", "Storm kernel width (2-D Gaussian)", 0.18, None, "dataset", "width 0.18", "W5.1 A2", "over along-flow position and branch offset"),
-    ("dry_rise", "Rising node-hours under dry sky", 12.0, "%", "dataset", "**12.0%**", "W5.1 A2", "samples local forcing cannot explain"),
-    ("w4_own_r2", "Own 24-step history, R² at 1 h", 0.9998, None, "week4", "0.9998", "Week 4 §4b", None),
-    ("w4_gain_1h", "Mean R² gain from upstream history, 1 h", "+0.0001", None, "week4", "**+0.0001**", "Week 4 §4b", None),
-    ("w4_gain_6h", "Mean R² gain from upstream history, 6 h", "+0.005", None, "week4", "+0.0045", "Week 4 §4b", "reported +0.0045"),
-    ("w4_gain_12h", "Mean R² gain from upstream history, 12 h", "−0.014", None, "week4", "−0.0144", "Week 4 §4b", None),
-    ("w4_gcn_win", "GCN over MLP, the one basin it won", "+11.2", "%", "week4", "+11.2%", "Week 4 §3", "basin_02, p = 0.039; one basin of three"),
-    ("w4_gcn_held", "GCN vs MLP, held-out basin", "−15", "%", "week4", "worse** by 15%", "Week 4 §3", "GCN 2–4× more variable across seeds"),
-    ("gate_all", "Gate ΔR², all ungauged nodes", "+0.181", None, "gate", "+0.1809", "W5.2", "threshold 0.05; 7 of 8 basins"),
-    ("gate_served", "Gate ΔR², ungauged nodes with a gauged ancestor", "+0.242", None, "gate", "+0.2416", "W5.2", "8 of 8 basins"),
-    ("gate_k1", "Gate ΔR² at lead 1 h", "+0.236", None, "gate", "+0.2363", "W5.2", None),
-    ("gate_k6", "Gate ΔR² at lead 6 h", "+0.241", None, "gate", "+0.2411", "W5.2", None),
-    ("gate_k12", "Gate ΔR² at lead 12 h", "+0.247", None, "gate", "+0.2474", "W5.2", None),
-    ("gate_b08", "basin_08, all ungauged nodes", "−0.005", None, "gate", "**−0.005**", "W5.2", "10 of 26 ungauged nodes have no gauged ancestor"),
-    ("gate_b08_served", "basin_08, served nodes only", "+0.012", None, "gate", "**+0.012**", "W5.2", None),
-    ("gate_coverage", "Ungauged nodes with a gauged ancestor in 9 hops", 63, "%", "gate", "126 of 201 ungauged nodes (63%)", "W5.2", "126 of 201"),
-    ("trap_untrained", "Plain within-node r, untrained GATv2", 0.956, None, "attention", "**0.956**", "W5.5", "the false headline the metric would have produced"),
-    ("trap_confound", "within-node r(reach length, travel time)", "+0.97 to +0.99", None, "attention", "+0.97 to +0.99", "W5.5", "hop count drives both"),
-    ("ref_routing", "Naive cross-correlation reference, routing edges", 0.698, None, "attention", "r = 0.698", "W5.1 A5", "re-derived on the Week 5 dataset"),
-    ("ref_all", "Naive cross-correlation reference, all message edges", 0.769, None, "attention", "r = 0.769", "W5.1 A5", None),
-    ("att_local_area", "Attention vs upstream local area", "+0.870", None, "attention", "+0.870", "W5.5", "sign-consistent 8 of 8 basins"),
-    ("att_mean_q", "Attention vs upstream mean discharge", "+0.845", None, "attention", "+0.845", "W5.5", "significant in 8 of 8"),
-    ("att_drainage", "Attention vs upstream drainage area", "+0.844", None, "attention", "+0.844", "W5.5", "significant in 8 of 8"),
-    ("att_reach", "Attention vs reach length", "+0.062", None, "attention", "+0.062", "W5.5", "5 of 8 basins"),
-    ("tests_passing", "Passing tests on the attention evaluator", 33, None, "rigor", "33 passing", "W5.5", None),
-    ("undir_coverage_r", "Undirected gain vs upstream gauge coverage", "−0.06", None, "ablation", "**−0.06**", "W5.6", "the obvious mechanism fails"),
-]
+MAIN = "20260830-192452-1440f965dd-main"
+W4 = "20260830-145849-092b9d652a"
+W4_ROBUST = "20260830-150156-cd34e687df-robustness"
+W4_REPRO = "20260830-150740-092b9d652a-repro"
+GATE_SCRIPT = "evaluation/gate_information_test.py"
+INFO_SCRIPT = "evaluation/graph_information_test.py"
+EVAL_TESTS = "evaluation/test_attention_eval.py"
+DATASET = "dataset"  # placeholder resolved to "flood_routing_dataset@<version>"
 
-# Recorded constants that the site brief (section 8/9) itself lists. Without the
-# thesis repo, only these may be shown as verified; the rest stay pending.
-IN_BRIEF = {
-    "real_sections", "real_gauges", "real_ungauged", "mass_balance", "storm_kernel",
-    "w4_own_r2", "w4_gain_6h", "w4_gain_12h", "w4_gcn_win", "w4_gcn_held",
-    "gate_all", "gate_served", "gate_k1", "gate_k12", "gate_b08", "gate_b08_served",
-    "gate_coverage", "trap_untrained", "trap_confound", "ref_routing", "ref_all", "tests_passing",
-}
+# Recorded constants: numbers printed by scripts rather than written to CSVs.
+# Each is read out of the committed RESULTS.md: the needle is the exact text
+# the document carries, and the value shown is that text, rounded at most.
+# A recorded constant whose needle disappears from RESULTS.md turns pending.
+#
+# Fields: id, label, value, unit, group, needle, section, run, status, qualifier, note
+RECORDED = [
+    ("real_sections", "Real network: surveyed cross-sections", 28, None, "real", "4 of 28", "W5.1 A1", None, "verified", None, "H1–H4 network; a property of the river, not a result"),
+    ("real_gauges", "Real network: gauges", 4, None, "real", "4 of 28", "W5.1 A1", None, "verified", None, "H1–H4"),
+    ("real_ungauged", "Real network: cross-sections without a gauge", 86, "%", "real", "4 of 28", "W5.1 A1", None, "verified", None, "24 of 28"),
+    ("repro", "Reproducibility re-run of the Week 4 headline table", "identical", None, "rigor", "reproduced the headline table", "Week 4 §8", W4_REPRO, "verified", None, "to four decimal places, after all code changes"),
+    ("mass_balance", "Mass balance, all basins", "1.0000", None, "dataset", "1.0000 in all 8 basins", "W5.1 A5", DATASET, "verified", None, None),
+    ("storm_kernel", "Storm kernel width (2-D Gaussian)", 0.18, None, "dataset", "width 0.18", "W5.1 A2", DATASET, "verified", None, "over along-flow position and branch offset"),
+    ("dry_rise", "Rising node-hours under dry sky", 12.0, "%", "dataset", "**12.0%**", "W5.1 A2", DATASET, "verified", None, "samples local forcing cannot explain"),
+    ("w4_own_r2", "Own 24-step history, R² at 1 h", 0.9998, None, "week4", "0.9998", "Week 4 §4b", INFO_SCRIPT, "verified", None, "least squares, out of sample"),
+    ("w4_gain_1h", "Mean R² gain from upstream history, 1 h", "+0.0001", None, "week4", "**+0.0001**", "Week 4 §4b", INFO_SCRIPT, "verified", None, None),
+    ("w4_gain_6h", "Mean R² gain from upstream history, 6 h", "+0.0045", None, "week4", "+0.0045", "Week 4 §4b", INFO_SCRIPT, "verified", None, None),
+    ("w4_gain_12h", "Mean R² gain from upstream history, 12 h", "−0.0144", None, "week4", "−0.0144", "Week 4 §4b", INFO_SCRIPT, "verified", None, None),
+    ("w4_gcn_variability", "GCN seed spread relative to the MLP's, held-out basin", "2–4×", None, "week4", "four times more variable", "Week 4 §3", W4, "verified", None, "s.d. across seeds"),
+    ("gate_all", "Gate ΔR², all ungauged nodes", "+0.181", None, "gate", "+0.1809", "W5.2", GATE_SCRIPT, "qualified", "below the pass mark in basin_08; positive in 7 of 8 basins", "pass mark 0.05; model-free ridge test"),
+    ("gate_served", "Gate ΔR², ungauged nodes with a gauged ancestor", "+0.242", None, "gate", "+0.2416", "W5.2", GATE_SCRIPT, "verified", None, "positive in 8 of 8 basins"),
+    ("gate_k1", "Gate ΔR² at lead 1 h", "+0.236", None, "gate", "+0.2363", "W5.2", GATE_SCRIPT, "verified", None, None),
+    ("gate_k6", "Gate ΔR² at lead 6 h", "+0.241", None, "gate", "+0.2411", "W5.2", GATE_SCRIPT, "verified", None, None),
+    ("gate_k12", "Gate ΔR² at lead 12 h", "+0.247", None, "gate", "+0.2474", "W5.2", GATE_SCRIPT, "verified", None, None),
+    ("gate_b08", "basin_08, all ungauged nodes", "−0.005", None, "gate", "**−0.005**", "W5.2", GATE_SCRIPT, "verified", None, "10 of 26 ungauged nodes have no gauged ancestor"),
+    ("gate_b08_served", "basin_08, served nodes only", "+0.012", None, "gate", "**+0.012**", "W5.2", GATE_SCRIPT, "verified", None, None),
+    ("gate_coverage", "Ungauged nodes with a gauged ancestor in 9 hops", 63, "%", "gate", "126 of 201 ungauged nodes (63%)", "W5.2", GATE_SCRIPT, "verified", None, "126 of 201"),
+    ("trap_untrained", "Plain within-node r, untrained GATv2", 0.956, None, "attention", "**0.956**", "W5.5", EVAL_TESTS, "verified", None, "the false headline the metric would have produced"),
+    ("trap_confound", "Within-node r(reach length, travel time)", "+0.97 to +0.99", None, "attention", "+0.97 to +0.99", "W5.5", DATASET, "verified", None, "hop count drives both"),
+    ("ref_routing", "Naive cross-correlation reference, routing edges", 0.698, None, "attention", "r = 0.698", "W5.1 A5", MAIN, "verified", None, "re-derived on the Week 5 dataset; also in the run's config.yaml"),
+    ("ref_all", "Naive cross-correlation reference, all message edges", 0.769, None, "attention", "r = 0.769", "W5.1 A5", MAIN, "verified", None, None),
+    ("att_local_area", "Attention vs upstream local area", "+0.870", None, "attention", "+0.870", "W5.5", MAIN, "verified", None, "sign-consistent in 8 of 8 basins"),
+    ("att_mean_q", "Attention vs upstream mean discharge", "+0.845", None, "attention", "+0.845", "W5.5", MAIN, "verified", None, "significant in 8 of 8"),
+    ("att_drainage", "Attention vs upstream drainage area", "+0.844", None, "attention", "+0.844", "W5.5", MAIN, "verified", None, "significant in 8 of 8"),
+    ("att_reach", "Attention vs reach length", "+0.062", None, "attention", "+0.062", "W5.5", MAIN, "verified", None, "5 of 8 basins"),
+    ("tests_passing", "Passing tests on the attention evaluator", 33, None, "rigor", "33 passing", "W5.5", EVAL_TESTS, "verified", None, None),
+    ("undir_coverage_r", "Undirected gain vs upstream gauge coverage, r", "−0.06", None, "ablation", "**−0.06**", "W5.6", "20260831-192438-b9b97f5d57-abl_undirected", "verified", None, "the obvious mechanism fails"),
+]
 
 # Things nobody has measured yet. Always pending until a real run exists.
 PENDING_ALWAYS = [
     ("real_gat_rmse", "GAT ungauged RMSE on H1–H4 gauge data", "—", "m³/s", "real", "Real network: 4 gauges, 28 cross-sections. Not yet run."),
-    ("real_gat_vs_gcn", "GAT vs GCN on H1–H4 gauge data", "—", "%", "real", "Synthetic results above do not transfer automatically."),
-    ("temporal_att_tt", "Temporal attention vs travel time, step by step", "—", "r", "real", "Week 6: lag may appear on the temporal axis, not the spatial one."),
+    ("real_gat_vs_gcn", "GAT vs GCN on H1–H4 gauge data", "—", "%", "real", "Synthetic results do not transfer automatically."),
+    ("temporal_att_tt", "Temporal attention vs travel time, step by step", "—", "r", "real", "Next experiment: lag may appear on the temporal axis, not the spatial one."),
     ("undir_mechanism", "Why the undirected graph helps", "—", None, "real", "Effect measured; mechanism unconfirmed."),
 ]
 
 
-def build_results(repo, net, mode):
-    M = Metrics()
-    prov = {"mode": mode, "runs": []}
+def run_dir(run_id):
+    return os.path.join(PROV, "runs", run_id)
 
-    # ---- dataset counts, computed directly
-    ds = os.path.join(repo, "flood_routing_dataset") if repo else None
-    have_ds = ds and os.path.exists(os.path.join(ds, "nodes.csv"))
-    if have_ds:
-        nodes = read_csv(os.path.join(ds, "nodes.csv"))
-        edges = read_csv(os.path.join(ds, "edges.csv"))
+
+def prov_rel(run_id, f):
+    return f"provenance/runs/{run_id}/{f}"
+
+
+def cells_from(run_id, model, group="ungauged"):
+    """Mean ungauged discharge RMSE over the 12 rollout steps, per (basin, seed)."""
+    p = os.path.join(run_dir(run_id), "metrics_per_seed.csv")
+    if not os.path.exists(p):
+        return None, {}
+    cell, split = defaultdict(list), {}
+    for x in read_csv(p):
+        if x["model"] == model and x["variable"] == "discharge_m3s" and x.get("node_group", "all") == group:
+            cell[(x["basin"], int(x["seed"]))].append(float(x["rmse"]))
+            split[x["basin"]] = x["split"]
+    return ({k: mean(v) for k, v in cell.items()} or None), split
+
+
+def pooled_improvement(a_cells, b_cells):
+    """100 · (B − A) / B on means pooled over the given cells: positive = A better."""
+    def stat(bs, ss):
+        a = mean(a_cells[(b, s)] for b in bs for s in ss)
+        c = mean(b_cells[(b, s)] for b in bs for s in ss)
+        return 100 * (c - a) / c
+    return stat
+
+
+def mean_pair_change(a_cells, ref_cells):
+    """RESULTS.md ablation convention: mean of per-(basin, seed) relative change vs reference."""
+    def stat(bs, ss):
+        return 100 * mean((ref_cells[(b, s)] - a_cells[(b, s)]) / ref_cells[(b, s)] for b in bs for s in ss)
+    return stat
+
+
+def build_results(manifest):
+    M = Metrics()
+    runs = {x["id"]: x for x in manifest["runs"]} if manifest else {}
+    ds_version = manifest["dataset"]["version"] if manifest else None
+
+    def hash_of(run_id):
+        if run_id in runs:
+            return runs[run_id]["configHash"]
+        return None
+
+    def run_label(run_id):
+        if run_id == DATASET:
+            return f"flood_routing_dataset@{ds_version}"
+        if run_id and run_id.startswith("evaluation/"):
+            # Model-free scripts write no run directory: name the script and
+            # the dataset version it ran on.
+            return f"{run_id} on dataset {ds_version}"
+        return run_id
+
+    def cfg_of(run_id):
+        if run_id == DATASET or (run_id and run_id.startswith("evaluation/")):
+            return ds_version
+        return hash_of(run_id)
+
+    # ---- dataset counts, recomputed from the committed tables
+    dsd = os.path.join(PROV, "dataset")
+    if os.path.exists(os.path.join(dsd, "nodes.csv")):
+        nodes = read_csv(os.path.join(dsd, "nodes.csv"))
+        edges = read_csv(os.path.join(dsd, "edges.csv"))
         basins = {n["basin_id"] for n in nodes}
         g = sum(truthy(n["is_gauged"]) for n in nodes)
         routing = [e for e in edges if truthy(e["is_routing_edge"])]
         tt = mean(float(e["travel_time_hours"]) for e in routing)
-        src = "flood_routing_dataset/*.csv"
-        M.add("basins", "Basins", len(basins), group="dataset", source=src)
-        M.add("nodes", "Cross-section nodes", len(nodes), group="dataset", source=src)
-        M.add("edges", "Directed edges", len(edges), group="dataset", source=src,
-              note=f"{len(routing)} routing + {len(edges) - len(routing)} message-only (2–3 hops)")
-        M.add("gauged", "Gauged nodes", g, group="dataset", source=src)
-        M.add("gauged_pct", "Share of nodes gauged", r(100 * g / len(nodes), 1), "%", group="dataset", source=src)
-        M.add("mean_tt", "Mean 1-hop travel time", r(tt, 2), "h", group="dataset", source=src)
-        M.add("horizon_ratio", "Rollout horizon / mean travel time", r(12 / tt, 2), "×", group="dataset", source=src,
-              note="12-step rollout")
-    else:
-        for id_, label, val, unit, note in [
-            ("basins", "Basins", 8, None, None), ("nodes", "Cross-section nodes", 233, None, None),
-            ("edges", "Directed edges", 651, None, None), ("gauged", "Gauged nodes", 32, None, None),
-            ("gauged_pct", "Share of nodes gauged", 13.7, "%", None),
-            ("horizon_ratio", "Rollout horizon / mean travel time", 1.57, "×", "12-step rollout")]:
-            M.add(id_, label, val, unit, group="dataset", note=note, source="brief §8")
+        kw = dict(group="dataset", derivation="recomputed", source="provenance/dataset/*.csv",
+                  run=run_label(DATASET), config_hash=ds_version)
+        M.add("basins", "Basins", len(basins), **kw)
+        M.add("nodes", "Cross-section nodes", len(nodes), **kw)
+        M.add("edges", "Directed edges", len(edges), note=f"{len(routing)} routing + {len(edges) - len(routing)} message-only (2–3 hops)", **kw)
+        M.add("gauged", "Gauged nodes", g, **kw)
+        M.add("gauged_pct", "Share of nodes gauged", r(100 * g / len(nodes), 1), "%", **kw)
+        M.add("mean_tt", "Mean 1-hop travel time", r(tt, 2), "h", **kw)
+        M.add("horizon_ratio", "Rollout horizon / mean travel time", r(12 / tt, 2), "×", note="12-step rollout", **kw)
 
-    # ---- recorded constants
-    for id_, label, val, unit, group, needle, section, note in RECORDED:
-        if repo and os.path.exists(os.path.join(repo, "RESULTS.md")):
-            ok = results_md_has(repo, needle)
-            M.add(id_, label, val, unit, "verified" if ok else "pending", note if ok else
-                  f"not found in RESULTS.md ({section}); re-check before publishing",
-                  group, f"RESULTS.md §{section}")
-        elif id_ in IN_BRIEF:
-            M.add(id_, label, val, unit, "verified", note, group, "brief §8")
-        else:
-            M.add(id_, label, val, unit, "pending", "not listed in the brief; needs the thesis repo", group, None)
+    # ---- recorded constants, read from the committed RESULTS.md
+    for id_, label, val, unit, group, needle, section, run_id, status, qual, note in RECORDED:
+        found = results_md_has(needle)
+        M.add(id_, label, val if found else "—", unit, status if found else "pending", group=group,
+              derivation="read", source=f"provenance/RESULTS.md §{section}",
+              run=run_label(run_id), config_hash=cfg_of(run_id),
+              qualifier=qual if found else None,
+              note=note if found else f"not found in RESULTS.md ({section}); re-check before publishing")
+
+    # ---- Week 4: GCN vs MLP, recomputed from the 8-seed robustness run.
+    # Separate models with no pairing, so seeds are resampled per model.
+    p = os.path.join(run_dir(W4_ROBUST), "metrics_per_seed.csv")
+    if os.path.exists(p):
+        per = defaultdict(list)
+        for x in read_csv(p):
+            if x["variable"] == "discharge_m3s":
+                per[(x["model"], x["basin"], int(x["seed"]))].append(float(x["rmse"]))
+
+        def seeds_of(model, basin):
+            return [mean(v) for (m_, b_, s_), v in sorted(per.items()) if m_ == model and b_ == basin]
+
+        def imp(gcn, mlp):
+            return 100 * (mean(mlp) - mean(gcn)) / mean(mlp)
+
+        src = prov_rel(W4_ROBUST, "metrics_per_seed.csv")
+        for id_, basin, label, status, qual in [
+            ("w4_gcn_win", "basin_02", "GCN over MLP, the one basin it won", "qualified",
+             "one basin of three; 8 seeds"),
+            ("w4_gcn_held", "basin_03", "GCN vs MLP, held-out basin", "qualified",
+             "8 seeds; interval spans zero"),
+        ]:
+            g_, m_ = seeds_of("gcn", basin), seeds_of("mlp", basin)
+            lo, hi = unpaired_seed_interval(g_, m_, imp)
+            iv = {"lo": r(lo, 3), "hi": r(hi, 3), "level": 0.95,
+                  "method": f"bootstrap over {len(g_)} seeds per model, {BOOT_DRAWS} draws; percentile"}
+            M.add(id_, label, f"{imp(g_, m_):+.1f}", "%", status, group="week4", derivation="recomputed",
+                  source=src, run=W4_ROBUST, config_hash=hash_of(W4_ROBUST),
+                  qualifier=f"{qual}; {fmt_ci(iv, '%')}", interval=iv, note=f"{basin}; positive = GCN better")
 
     # ---- main run
-    runs = find_runs(repo) if repo else []
-    main, has_gat = pick_main_run(runs)
-    rollout = None
-    basin_cmp = None
-    att_basins = None
-    ablations = None
+    rollout = basin_cmp = att_basins = ablations = None
+    gat, split = cells_from(MAIN, "gat")
+    gcn, _ = cells_from(MAIN, "gcn")
+    mlp, _ = cells_from(MAIN, "mlp")
+    per_c, _ = cells_from(MAIN, "persistence")
+    mcsv = os.path.join(run_dir(MAIN), "metrics.csv")
 
-    if main:
-        prov["runs"].append(os.path.basename(main))
-        rows = read_csv(os.path.join(main, "metrics.csv"))
+    if os.path.exists(mcsv):
+        rows = read_csv(mcsv)
         models = ["persistence", "mlp", "gcn", "gat"]
         steps = sorted({int(x["rollout_step"]) for x in rows})
-        rollout = {"variable": "discharge_m3s", "unit": "m³/s", "steps": steps, "run": os.path.basename(main),
-                   "panels": {}}
+        rollout = {"variable": "discharge_m3s", "unit": "m³/s", "steps": steps, "run": MAIN,
+                   "configHash": hash_of(MAIN), "panels": {}}
         for grp in ("gauged", "ungauged"):
             panel = []
             for m in models:
@@ -761,167 +1049,207 @@ def build_results(repo, net, mode):
                 if not sel:
                     panel.append({"model": m, "status": "pending", "values": []})
                     continue
-                vals = []
-                for s in steps:
-                    vs = [float(x["rmse_mean"]) for x in sel if int(x["rollout_step"]) == s]
-                    vals.append(r(mean(vs), 4))
+                vals = [r(mean(float(x["rmse_mean"]) for x in sel if int(x["rollout_step"]) == s), 4) for s in steps]
                 panel.append({"model": m, "status": "verified", "values": vals})
             rollout["panels"][grp] = panel
 
-        def basin_mean(model, grp="ungauged"):
-            out = {}
-            for b in sorted({x["basin"] for x in rows}):
-                sel = [x for x in rows if x["model"] == model and x["basin"] == b and
-                       x["variable"] == "discharge_m3s" and x["node_group"] == grp]
-                if sel:
-                    out[b] = (mean(float(x["rmse_mean"]) for x in sel), mean(float(x["rmse_std"]) for x in sel),
-                              sel[0]["split"])
-            return out
+    if gat and gcn:
+        src = prov_rel(MAIN, "metrics_per_seed.csv")
+        kw = dict(derivation="recomputed", source=src, run=MAIN, config_hash=hash_of(MAIN))
+        basins_ = sorted({b for b, _ in gat})
+        seeds = sorted({s for _, s in gat})
+        held = [b for b in basins_ if split[b] == "held_out"]
+        nb, ns = len(basins_), len(seeds)
 
-        gcn_b, gat_b, mlp_b, per_b = basin_mean("gcn"), basin_mean("gat"), basin_mean("mlp"), basin_mean("persistence")
-        if gat_b:
-            basin_cmp = [{
-                "basin": b, "split": gcn_b[b][2],
-                "persistence": r(per_b[b][0], 3), "mlp": r(mlp_b[b][0], 3),
-                "gcn": r(gcn_b[b][0], 3), "gcnSd": r(gcn_b[b][1], 3),
-                "gat": r(gat_b[b][0], 3), "gatSd": r(gat_b[b][1], 3),
-                "gatVsGcnPct": r(100 * (gcn_b[b][0] - gat_b[b][0]) / gcn_b[b][0], 2),
-            } for b in sorted(gcn_b)]
+        # Held-out basins: their own group, never folded into the figure above.
+        hstat = pooled_improvement(gat, gcn)
+        hpoint = hstat(held, seeds)
+        hlo, hhi = boot_interval(hstat, held, seeds)
+        hiv = interval(hlo, hhi, len(held), ns)
+        gh = [mean(gat[(b, s)] for b in held) for s in seeds]
+        ch = [mean(gcn[(b, s)] for b in held) for s in seeds]
+        M.add("gat_vs_gcn_held", "GAT over GCN, held-out basins only", f"{hpoint:+.2f}", "%", "qualified",
+              group="heldout",
+              qualifier=f"{fmt_ci(hiv, '%')}; {len(held)} basins, {ns} seeds"
+                        + ("; interval spans zero" if hlo <= 0 < hhi else ""),
+              note=", ".join(held) + " were never trained on", interval=hiv,
+              supersedes=f"paired t over {ns} seed means, p = {paired_t_p(ch, gh):.3f}", **kw)
+        M.add("gat_rmse_held", "GAT ungauged RMSE, held-out basins", r(mean(gh), 3), "m³/s", group="heldout", **kw)
+        M.add("gcn_rmse_held", "GCN ungauged RMSE, held-out basins", r(mean(ch), 3), "m³/s", group="heldout", **kw)
 
-        # pooled per seed and per (basin, seed), from metrics_per_seed
-        ps_path = os.path.join(main, "metrics_per_seed.csv")
-        src = f"results/{os.path.basename(main)}/metrics_per_seed.csv"
-        if has_gat and os.path.exists(ps_path):
-            ps = read_csv(ps_path)
-            cell = defaultdict(list)
-            for x in ps:
-                if x["variable"] == "discharge_m3s" and x["node_group"] == "ungauged":
-                    cell[(x["model"], x["basin"], int(x["seed"]))].append(float(x["rmse"]))
-            cm = {k: mean(v) for k, v in cell.items()}
-            seeds = sorted({k[2] for k in cm})
-            basins_ = sorted({k[1] for k in cm})
-            held = sorted({x["basin"] for x in ps if x["split"] == "held_out"})
+        stat = pooled_improvement(gat, gcn)
+        point = stat(basins_, seeds)
+        lo, hi = boot_interval(stat, basins_, seeds)
+        iv = interval(lo, hi, nb, ns)
+        gat_s = [mean(gat[(b, s)] for b in basins_) for s in seeds]
+        gcn_s = [mean(gcn[(b, s)] for b in basins_) for s in seeds]
+        survives = lo > 0
+        M.add("gat_vs_gcn", "GAT over GCN, ungauged discharge RMSE", f"{point:+.2f}", "%", "qualified", group="model",
+              qualifier=(f"{fmt_ci(iv, '%')}, {ns} seeds × {nb} basins; held-out basins alone {hpoint:+.2f}%"
+                         + (", interval spans zero" if hlo <= 0 < hhi else f", {fmt_ci(hiv, '%')}")),
+              note="pooled over all 8 basins, including the 2 held out; positive = GAT better", interval=iv,
+              supersedes=(f"paired t over {ns} seed means, p = {paired_t_p(gcn_s, gat_s):.3f}. Replaced: "
+                          + ("the clustered interval excludes zero, so the direction holds"
+                             if survives else "the clustered interval includes zero, so the gain is not established")),
+              **kw)
+        M.add("gat_rmse", "GAT ungauged RMSE, 8-basin mean", r(mean(gat_s), 3), "m³/s", group="model", **kw)
+        M.add("gcn_rmse", "GCN ungauged RMSE, 8-basin mean", r(mean(gcn_s), 3), "m³/s", group="model", **kw)
 
-            def pooled(model, bs):
-                return [mean(cm[(model, b, s)] for b in bs) for s in seeds]
+        pairs = [(gcn[(b, s)], gat[(b, s)]) for b in basins_ for s in seeds]
+        wins = sum(1 for c, a in pairs if a < c)
+        rel = [(c - a) / c for c, a in pairs]
+        M.add("gat_pair_wins", "Basin–seed pairs where GAT beats GCN", f"{wins} / {len(pairs)}", None, "qualified",
+              group="model", qualifier="pairs share basins and seeds, so this is not 24 independent wins",
+              supersedes=f"one-sample t over {len(pairs)} pairs as if independent, p = {paired_t_p(rel, [0.0] * len(rel)):.1e}",
+              **kw)
+        won = sum(1 for b in basins_ if mean(gat[(b, s)] for s in seeds) < mean(gcn[(b, s)] for s in seeds))
+        M.add("gat_basins_won", "Basins where GAT's 3-seed mean beats GCN's", f"{won} / {nb}", group="model",
+              note="by up to 18% in some basins and under 1% in others", **kw)
+        if mlp:
+            ms = pooled_improvement(gat, mlp)
+            mlo, mhi = boot_interval(ms, basins_, seeds)
+            miv = interval(mlo, mhi, nb, ns)
+            M.add("gat_vs_mlp", "GAT over graph-blind MLP, ungauged", f"{ms(basins_, seeds):+.1f}", "%", group="model",
+                  note=fmt_ci(miv, "%"), interval=miv, **kw)
 
-            gat_s, gcn_s = pooled("gat", basins_), pooled("gcn", basins_)
-            imp = 100 * (mean(gcn_s) - mean(gat_s)) / mean(gcn_s)
-            M.add("gat_vs_gcn", "GAT over GCN, ungauged discharge RMSE", f"+{imp:.2f}", "%", group="model",
-                  note=f"paired t over {len(seeds)} seeds, p = {paired_t_p(gcn_s, gat_s):.3f}", source=src)
-            M.add("gat_rmse", "GAT ungauged RMSE, 8-basin mean", r(mean(gat_s), 3), "m³/s", group="model", source=src)
-            M.add("gcn_rmse", "GCN ungauged RMSE, 8-basin mean", r(mean(gcn_s), 3), "m³/s", group="model", source=src)
-            gh, ch = pooled("gat", held), pooled("gcn", held)
-            M.add("gat_vs_gcn_held", "GAT over GCN, held-out basins only",
-                  f"+{100 * (mean(ch) - mean(gh)) / mean(ch):.2f}", "%", group="model",
-                  note=f"p = {paired_t_p(ch, gh):.3f} — underpowered at {len(seeds)} seeds", source=src)
-            pairs = [(cm[("gcn", b, s)], cm[("gat", b, s)]) for b in basins_ for s in seeds]
-            wins = sum(1 for c, a in pairs if a < c)
-            # Same test as RESULTS.md: one-sample t on per-pair relative change.
-            rel = [(c - a) / c for c, a in pairs]
-            M.add("gat_pair_wins", "Basin–seed pairs where GAT beats GCN", f"{wins} / {len(pairs)}", group="model",
-                  note=f"t-test on per-pair relative change, p = {paired_t_p(rel, [0.0] * len(rel)):.1e}", source=src)
-            basins_won = sum(1 for b in basins_ if mean(cm[("gat", b, s)] for s in seeds) < mean(cm[("gcn", b, s)] for s in seeds))
-            M.add("gat_basins_won", "Basins where GAT beats GCN", f"{basins_won} / {len(basins_)}", group="model", source=src)
-            mlp_s = pooled("mlp", basins_)
-            M.add("gat_vs_mlp", "GAT over graph-blind MLP, ungauged", f"+{100 * (mean(mlp_s) - mean(gat_s)) / mean(mlp_s):.1f}", "%",
-                  group="model", source=src)
-        else:
-            for id_, label in [("gat_vs_gcn", "GAT over GCN, ungauged discharge RMSE"),
-                               ("gat_rmse", "GAT ungauged RMSE, 8-basin mean")]:
-                M.add(id_, label, "—", None, "pending", "GAT run not complete", "model", "results/")
+        # Per-basin table. Uncertainty per basin is the range over its 3 seeds:
+        # with three values a bootstrap would only restate them.
+        def seed_sd(cells, b):
+            v = [cells[(b, s)] for s in seeds]
+            mu = mean(v)
+            return math.sqrt(sum((x - mu) ** 2 for x in v) / (len(v) - 1))
 
-        # attention scores
-        sp = os.path.join(main, "attention_scores.csv")
-        if os.path.exists(sp):
-            a = read_csv(sp)
-            src = f"results/{os.path.basename(main)}/attention_scores.csv"
-            M.add("att_tt_r", "Attention vs travel time, hop-stratified r", f"{mean(float(x['hop_strat_r_all']) for x in a):+.3f}",
-                  group="attention", note="all message edges; permutation null, 1000 draws", source=src)
-            M.add("att_tt_r_routing", "Attention vs travel time, routing edges", f"{mean(float(x['hop_strat_r_routing']) for x in a):+.3f}",
-                  group="attention", source=src)
-            M.add("att_confound", "Reach-length confound baseline", f"{mean(float(x['confound_length_r']) for x in a):+.3f}",
-                  group="attention", note="attention does not beat it", source=src)
-            M.add("att_entropy", "Mean normalised attention entropy", r(mean(float(x["mean_entropy"]) for x in a), 3),
-                  group="attention", note="1.0 = uniform over incoming edges", source=src)
-            by_b = defaultdict(list)
-            for x in a:
-                by_b[x["basin"]].append(x)
-            att_basins = []
-            pos_sig = 0
-            for b in sorted(by_b):
-                xs = by_b[b]
-                rr = mean(float(x["hop_strat_r_all"]) for x in xs)
-                pp = mean(float(x["p_all"]) for x in xs)
-                att_basins.append({"basin": b, "r": r(rr, 3), "p": r(pp, 3)})
-            signs = sum(1 for x in att_basins if x["r"] > 0)
-            M.add("att_sign", "Basins where attention r is positive", f"{signs} / {len(att_basins)}", group="attention", source=src)
-        else:
-            M.add("att_tt_r", "Attention vs travel time, hop-stratified r", "—", None, "pending",
-                  "attention_scores.csv missing", "attention", "results/")
-        cp = os.path.join(main, "attention_seed_consistency.csv")
+        basin_cmp = []
+        for b in basins_:
+            per_seed = [100 * (gcn[(b, s)] - gat[(b, s)]) / gcn[(b, s)] for s in seeds]
+            g_ = mean(gat[(b, s)] for s in seeds)
+            c_ = mean(gcn[(b, s)] for s in seeds)
+            basin_cmp.append({
+                "basin": b, "split": split[b],
+                "persistence": r(mean(per_c[(b, s)] for s in seeds), 3) if per_c else None,
+                "mlp": r(mean(mlp[(b, s)] for s in seeds), 3) if mlp else None,
+                "gcn": r(c_, 3), "gcnSd": r(seed_sd(gcn, b), 3),
+                "gat": r(g_, 3), "gatSd": r(seed_sd(gat, b), 3),
+                "gatVsGcnPct": r(100 * (c_ - g_) / c_, 2),
+                "seedRangePct": [r(min(per_seed), 2), r(max(per_seed), 2)],
+            })
+    else:
+        M.add("gat_vs_gcn", "GAT over GCN, ungauged discharge RMSE", "—", None, "pending", group="model",
+              derivation="recomputed", note="GAT run not in provenance/")
+
+    # ---- attention
+    sp = os.path.join(run_dir(MAIN), "attention_scores.csv")
+    if os.path.exists(sp):
+        a = read_csv(sp)
+        src = prov_rel(MAIN, "attention_scores.csv")
+        kw = dict(group="attention", derivation="recomputed", source=src, run=MAIN, config_hash=hash_of(MAIN))
+        cell = {(x["basin"], int(x["seed"])): x for x in a}
+        ab = sorted({b for b, _ in cell})
+        asd = sorted({s for _, s in cell})
+
+        def col_stat(col):
+            return lambda bs, ss: mean(float(cell[(b, s)][col]) for b in bs for s in ss)
+
+        def ci_for(col):
+            st = col_stat(col)
+            lo, hi = boot_interval(st, ab, asd)
+            return st(ab, asd), interval(lo, hi, len(ab), len(asd))
+
+        conf_v, conf_iv = ci_for("confound_length_r")
+        seed_v = None
+        cp = os.path.join(run_dir(MAIN), "attention_seed_consistency.csv")
         if os.path.exists(cp):
             c = read_csv(cp)
-            M.add("att_seed_r", "Attention agreement between seeds", f"{mean(float(x['mean_r']) for x in c):+.3f}",
-                  group="attention", note="moderate; show attention across seeds, not from one",
-                  source=f"results/{os.path.basename(main)}/attention_seed_consistency.csv")
+            per_b = {x["basin"]: float(x["mean_r"]) for x in c}
+            sb = sorted(per_b)
+            sst = lambda bs, ss: mean(per_b[b] for b in bs)
+            slo, shi = boot_interval(sst, sb, [])
+            seed_v, seed_iv = sst(sb, []), interval(slo, shi, len(sb), 0)
 
+        ctx = f"reach-length baseline scores {conf_v:+.3f}" + (f"; seeds agree at {seed_v:+.3f}" if seed_v is not None else "")
+        v, iv = ci_for("hop_strat_r_all")
+        M.add("att_tt_r", "Attention vs travel time, hop-stratified r", f"{v:+.3f}", None, "qualified",
+              qualifier=f"chance level, {fmt_ci_r(iv)}; {ctx}", interval=iv,
+              note="all message edges; permutation null, 1000 draws", **kw)
+        v, iv = ci_for("hop_strat_r_routing")
+        M.add("att_tt_r_routing", "Attention vs travel time, routing edges", f"{v:+.3f}", None, "qualified",
+              qualifier=f"wrong sign, chance level, {fmt_ci_r(iv)}; {ctx}", interval=iv,
+              note="one-hop routing edges only", **kw)
+        M.add("att_confound", "Reach-length confound baseline", f"{conf_v:+.3f}", note=fmt_ci_r(conf_iv),
+              interval=conf_iv, **kw)
+        gst = lambda bs, ss: col_stat("hop_strat_r_all")(bs, ss) - col_stat("confound_length_r")(bs, ss)
+        glo, ghi = boot_interval(gst, ab, asd)
+        giv = interval(glo, ghi, len(ab), len(asd))
+        M.add("att_vs_confound", "Attention minus the reach-length baseline", f"{gst(ab, asd):+.3f}", note=fmt_ci_r(giv),
+              interval=giv, **kw)
+        M.add("att_entropy", "Mean normalised attention entropy", r(mean(float(x["mean_entropy"]) for x in a), 3),
+              note="1.0 = uniform over incoming edges", **kw)
+        by_b = defaultdict(list)
+        for x in a:
+            by_b[x["basin"]].append(x)
+        att_basins = [{"basin": b, "r": r(mean(float(x["hop_strat_r_all"]) for x in xs), 3),
+                       "p": r(mean(float(x["p_all"]) for x in xs), 3)} for b, xs in sorted(by_b.items())]
+        signs = sum(1 for x in att_basins if x["r"] > 0)
+        M.add("att_sign", "Basins where attention r is positive", f"{signs} / {len(att_basins)}", **kw)
+        if seed_v is not None:
+            M.add("att_seed_r", "Attention agreement between seeds", f"{seed_v:+.3f}", None, "qualified",
+                  qualifier=f"patterns not stable across seeds; {fmt_ci_r(seed_iv)}", interval=seed_iv,
+                  **{**kw, "source": prov_rel(MAIN, "attention_seed_consistency.csv")})
     else:
-        # spec / brief mode
-        M.add("gat_vs_gcn", "GAT over GCN, ungauged discharge RMSE", "—", None, "pending",
-              "GAT-vs-GCN training not finished", "model", "brief §8")
-        M.add("att_tt_r", "Attention vs travel time, hop-stratified r", "—", None, "pending",
-              "needs a trained GAT", "attention", "brief §8")
+        M.add("att_tt_r", "Attention vs travel time, hop-stratified r", "—", None, "pending", group="attention",
+              derivation="recomputed", note="attention_scores.csv not in provenance/")
 
-    # ---- ablations
-    ab_path = os.path.join(repo, "results", "ablations.csv") if repo else None
-    if ab_path and os.path.exists(ab_path) and main:
-        prov["runs"].append("ablations.csv")
+    # ---- ablations: same 24 (basin, seed) cells as the reference
+    ab_path = os.path.join(PROV, "ablations.csv")
+    if os.path.exists(ab_path) and gat:
         rows = read_csv(ab_path)
         ref = next((x for x in rows if x["ablation"].startswith("B1")), None)
+        ref_cells, _ = cells_from(ref["run"], "gat") if ref else (None, {})
         ablations = []
-
-        def pair_cells(run_dir):
-            p = os.path.join(repo, "results", run_dir, "metrics_per_seed.csv")
-            if not os.path.exists(p):
-                return None
-            cell = defaultdict(list)
-            for x in read_csv(p):
-                if x["model"] == "gat" and x["variable"] == "discharge_m3s" and x["node_group"] == "ungauged":
-                    cell[(x["basin"], int(x["seed"]))].append(float(x["rmse"]))
-            return {k: mean(v) for k, v in cell.items()}
-
-        ref_cells = pair_cells(ref["run"]) if ref else None
+        naive = {}
         for x in rows:
-            rm = float(x["rmse_all"])
-            vs = p = better = None
+            vs = iv = better = None
             if x is not ref and ref_cells:
-                cells = pair_cells(x["run"])
+                cells, _ = cells_from(x["run"], "gat")
                 if cells:
-                    # RESULTS.md convention: mean of per-(basin, seed) relative
-                    # change against B1, one-sample t on those changes.
                     keys = sorted(set(cells) & set(ref_cells))
-                    rel = [(ref_cells[k] - cells[k]) / ref_cells[k] for k in keys]
-                    vs = 100 * mean(rel)
-                    p = paired_t_p(rel, [0.0] * len(rel))
+                    bs = sorted({b for b, _ in keys})
+                    ss = sorted({s for _, s in keys})
+                    st = mean_pair_change(cells, ref_cells)
+                    vs = st(bs, ss)
+                    lo, hi = boot_interval(st, bs, ss)
+                    iv = interval(lo, hi, len(bs), len(ss))
                     better = f"{sum(1 for k in keys if cells[k] < ref_cells[k])}/{len(keys)}"
+                    rel = [(ref_cells[k] - cells[k]) / ref_cells[k] for k in keys]
+                    naive[x["ablation"]] = (len(rel), paired_t_p(rel, [0.0] * len(rel)))
             ablations.append({
                 "name": "reference (B1)" if x is ref else x["ablation"],
-                "detail": x["detail"],
-                "rmse": r(rm, 3), "vsRefPct": r(vs, 2), "p": r(p, 3), "betterIn": better,
+                "detail": x["detail"], "run": x["run"], "configHash": hash_of(x["run"]),
+                "rmse": r(float(x["rmse_all"]), 3), "rmseHeld": r(float(x["rmse_held"]), 3),
+                "vsRefPct": r(vs, 2), "interval": iv, "betterIn": better,
                 "attnR": r(float(x["attn_r"]), 3),
             })
         und = next((a for a in ablations if a["name"] == "undirected"), None)
-        if und:
-            M.add("undirected_gain", "Undirected graph vs directed reference", f"+{und['vsRefPct']:.1f}", "%",
-                  group="ablation", note=f"p = {und['p']:.3f}, better in {und['betterIn']} pairs — larger than the GAT gain",
-                  source="results/ablations.csv")
-    elif not main:
-        pass
+        if und and und["interval"]:
+            ui = und["interval"]
+            M.add("undirected_gain", "Undirected graph vs directed reference", f"{und['vsRefPct']:+.1f}", "%", "qualified",
+                  group="ablation", derivation="recomputed",
+                  source=prov_rel(und["run"], "metrics_per_seed.csv"), run=und["run"], config_hash=und["configHash"],
+                  qualifier=f"{fmt_ci(ui, '%')}; better in only {und['betterIn']} pairs; mechanism unexplained",
+                  interval=ui, note="mean per-pair relative change, as in RESULTS.md",
+                  supersedes="one-sample t over {} pairs as if independent, p = {:.3f}".format(*naive["undirected"]))
 
     for id_, label, val, unit, group, note in PENDING_ALWAYS:
-        M.add(id_, label, val, unit, "pending", note, group, None)
+        M.add(id_, label, val, unit, "pending", group=group, derivation="recomputed", note=note)
 
+    prov = {
+        "thesisCommit": manifest.get("thesisCommit") if manifest else None,
+        "datasetVersion": ds_version,
+        "runs": [{"id": x["id"], "role": x["role"], "configHash": x["configHash"], "configPath": x["configPath"],
+                  "seeds": x["seeds"]} for x in manifest["runs"]] if manifest else [],
+        "bootstrap": {"draws": BOOT_DRAWS, "seed": BOOT_SEED, "level": 0.95,
+                      "unit": "basins and seeds resampled independently"},
+    }
     return M.items, rollout, basin_cmp, att_basins, ablations, prov
 
 
@@ -1003,16 +1331,40 @@ export type ModelWindow = {
 }
 """
 
+
 RESULTS_TYPES = """
+/** verified: measured and reproducible from provenance/. qualified: measured, with a
+ *  limitation stated in `qualifier`. pending: not measured. */
+export type Status = 'verified' | 'qualified' | 'pending'
+
+/** recomputed from raw run outputs, or read from a source document (RESULTS.md). */
+export type Derivation = 'recomputed' | 'read'
+
+export type Interval = {
+  lo: number
+  hi: number
+  level: number
+  method: string
+}
+
 export type Metric = {
   id: string
   label: string
   value: number | string
   unit?: string
-  status: 'verified' | 'pending'
+  status: Status
+  /** the limitation, rendered next to the number; present iff status is 'qualified' */
+  qualifier?: string
   note?: string
   group: string
+  derivation: Derivation
   source?: string
+  /** run ID, or script and dataset version for model-free tests */
+  run?: string
+  configHash?: string
+  interval?: Interval
+  /** the analysis this value replaced, kept so the change is visible */
+  supersedes?: string
 }
 
 export type ModelKey = 'persistence' | 'mlp' | 'gcn' | 'gat'
@@ -1028,19 +1380,22 @@ export type Rollout = {
   unit: string
   steps: number[]
   run: string
+  configHash: string | null
   panels: { gauged: RolloutSeries[]; ungauged: RolloutSeries[] }
 } | null
 
 export type BasinComparison = {
   basin: string
   split: string
-  persistence: number
-  mlp: number
+  persistence: number | null
+  mlp: number | null
   gcn: number
   gcnSd: number
   gat: number
   gatSd: number
   gatVsGcnPct: number
+  /** lowest and highest per-seed GAT-vs-GCN change in this basin */
+  seedRangePct: [number, number]
 }[] | null
 
 export type AttentionByBasin = { basin: string; r: number; p: number }[] | null
@@ -1048,11 +1403,21 @@ export type AttentionByBasin = { basin: string; r: number; p: number }[] | null
 export type Ablation = {
   name: string
   detail: string
+  run: string
+  configHash: string | null
   rmse: number
+  rmseHeld: number
   vsRefPct: number | null
-  p: number | null
+  interval: Interval | null
   betterIn: string | null
   attnR: number
+}
+
+export type Provenance = {
+  thesisCommit: string | null
+  datasetVersion: string | null
+  runs: { id: string; role: string; configHash: string | null; configPath: string | null; seeds: number[] | null }[]
+  bootstrap: { draws: number; seed: number; level: number; unit: string }
 }
 """
 
@@ -1064,23 +1429,54 @@ def write_ts(path, header, body):
     print("wrote", os.path.relpath(path, SITE))
 
 
+def write_results():
+    manifest = load_manifest()
+    if manifest:
+        check_manifest(manifest)
+        with open(os.path.join(PROV, "MANIFEST.json"), "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()[:16]
+    else:
+        print("[generate_data] provenance/MANIFEST.json missing; every result will be pending")
+        digest = "none"
+    metrics, rollout, cmp_, att_b, abl, prov = build_results(manifest)
+    body = RESULTS_TYPES + "\n"
+    body += f"export const provenance: Provenance = {ts_literal(prov)}\n\n"
+    body += f"export const metrics: Metric[] = {ts_literal(metrics)}\n\n"
+    body += f"export const rollout: Rollout = {ts_literal(rollout)}\n\n"
+    body += f"export const basinComparison: BasinComparison = {ts_literal(cmp_)}\n\n"
+    body += f"export const attentionByBasin: AttentionByBasin = {ts_literal(att_b)}\n\n"
+    body += f"export const ablations: Ablation[] | null = {ts_literal(abl)}\n"
+    write_ts(os.path.join(OUT_DIR, "results.ts"), RESULTS_HEADER.format(digest=digest), body)
+    counts = defaultdict(int)
+    for m in metrics:
+        counts[m["status"]] += 1
+    print(f"[generate_data] metrics={len(metrics)} " + " ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("repo", nargs="?", default=os.path.join(SITE, "..", "Machine Learning Project"),
                     help="thesis repo path (default: ../Machine Learning Project)")
     ap.add_argument("--basin", default="basin_01")
+    ap.add_argument("--results-only", action="store_true",
+                    help="rebuild results.ts from provenance/ alone; touches nothing else")
     args = ap.parse_args()
+    os.makedirs(OUT_DIR, exist_ok=True)
+
+    if args.results_only:
+        write_results()
+        return
+
     repo = os.path.abspath(args.repo)
     when = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
-
     ds = os.path.join(repo, "flood_routing_dataset")
     have = all(os.path.exists(os.path.join(ds, f)) for f in ("nodes.csv", "edges.csv"))
-    os.makedirs(OUT_DIR, exist_ok=True)
 
     if have:
         mode = "thesis-repo"
+        sync_provenance(repo)
         net = build_network_from_thesis(repo, args.basin)
-        source = repo.replace("\\", "/")
+        source = "thesis repository" + (f" @ {git_head(repo)[:7]}" if git_head(repo) else "")
         if os.path.exists(os.path.join(ds, "timeseries.csv")):
             series, _ = extract_events(repo, net)
         else:
@@ -1089,7 +1485,7 @@ def main():
         mode = "seeded-spec"
         print(f"[generate_data] no dataset CSVs under {ds}; using the seeded spec (brief §6.1)")
         net = build_network_from_spec()
-        source = "brief §6.1 seeded spec + §8 verified numbers"
+        source = "brief §6.1 seeded spec"
         series = synth_event(net)
 
     up, down, i0 = pick_event(net, series)
@@ -1110,22 +1506,10 @@ def main():
     body += f"export const problemHydrograph: ProblemHydrograph = {ts_literal(hydro)}\n\n"
     body += f"export const modelWindow: ModelWindow = {ts_literal(window)}\n"
     write_ts(os.path.join(OUT_DIR, "network.ts"), HEADER.format(when=when, mode=mode, source=source), body)
-
-    metrics, rollout, cmp_, att_b, abl, prov = build_results(repo if have else None, net, mode)
-    body = RESULTS_TYPES + "\n"
-    body += f"export const provenance: {{ mode: string; runs: string[] }} = {ts_literal(prov)}\n\n"
-    body += f"export const metrics: Metric[] = {ts_literal(metrics)}\n\n"
-    body += f"export const rollout: Rollout = {ts_literal(rollout)}\n\n"
-    body += f"export const basinComparison: BasinComparison = {ts_literal(cmp_)}\n\n"
-    body += f"export const attentionByBasin: AttentionByBasin = {ts_literal(att_b)}\n\n"
-    body += f"export const ablations: Ablation[] | null = {ts_literal(abl)}\n"
-    write_ts(os.path.join(OUT_DIR, "results.ts"), HEADER.format(when=when, mode=mode, source=source), body)
-
-    pend = [m["id"] for m in metrics if m["status"] == "pending"]
     print(f"[generate_data] mode={mode} nodes={len(net['nodes'])} edges={len(net['edges'])} "
-          f"attention={'yes' if attention else 'no'} metrics={len(metrics)} pending={len(pend)}")
-    if pend:
-        print("  pending:", ", ".join(pend))
+          f"attention={'yes' if attention else 'no'}")
+
+    write_results()
 
 
 if __name__ == "__main__":

@@ -66,7 +66,7 @@ export function Hero() {
   const [h1a, h1b] = hero.headline.split('. ')
 
   return (
-    <header id="top" className="ground-abyss relative overflow-hidden lg:h-hero lg:min-h-hero">
+    <header id="top" className="ground-abyss relative overflow-hidden lg:min-h-heroFit">
       <div className="relative h-sceneSm lg:absolute lg:inset-0 lg:h-auto">
         {gl !== false ? (
           ready ? (
@@ -85,7 +85,7 @@ export function Hero() {
         )}
       </div>
 
-      <div className="pointer-events-none relative z-overlay px-gutter pb-10 pt-6 sm:px-8 lg:absolute lg:inset-y-0 lg:left-rail lg:flex lg:flex-col lg:justify-end lg:pb-14 lg:pl-6">
+      <div className="pointer-events-none relative z-overlay px-gutter pb-10 pt-6 sm:px-8 lg:ml-rail lg:flex lg:min-h-heroFit lg:flex-col lg:justify-end lg:pb-14 lg:pl-6 lg:pt-24">
         <div className="pointer-events-auto">
           <h1 className="cut-condensed max-w-headline text-display tracking-display text-foam">
             <span className="block font-bold">{h1a}.</span>

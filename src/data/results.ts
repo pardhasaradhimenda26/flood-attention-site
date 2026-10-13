@@ -1,17 +1,40 @@
 // GENERATED FILE — DO NOT HAND-EDIT.
-// Written by scripts/generate_data.py on 2026-10-07 14:49.
-// Mode: thesis-repo. Source: C:/Machine Learning Project
-// Re-run the script to update. Any manual change here is overwritten.
+// Written by scripts/generate_data.py from the committed inputs in provenance/
+// (MANIFEST.json sha256 eb63ecf5fa276088). Reproduce with: npm run regen-data
+// Any manual change here is overwritten, and CI fails if this file drifts.
+
+/** verified: measured and reproducible from provenance/. qualified: measured, with a
+ *  limitation stated in `qualifier`. pending: not measured. */
+export type Status = 'verified' | 'qualified' | 'pending'
+
+/** recomputed from raw run outputs, or read from a source document (RESULTS.md). */
+export type Derivation = 'recomputed' | 'read'
+
+export type Interval = {
+  lo: number
+  hi: number
+  level: number
+  method: string
+}
 
 export type Metric = {
   id: string
   label: string
   value: number | string
   unit?: string
-  status: 'verified' | 'pending'
+  status: Status
+  /** the limitation, rendered next to the number; present iff status is 'qualified' */
+  qualifier?: string
   note?: string
   group: string
+  derivation: Derivation
   source?: string
+  /** run ID, or script and dataset version for model-free tests */
+  run?: string
+  configHash?: string
+  interval?: Interval
+  /** the analysis this value replaced, kept so the change is visible */
+  supersedes?: string
 }
 
 export type ModelKey = 'persistence' | 'mlp' | 'gcn' | 'gat'
@@ -27,19 +50,22 @@ export type Rollout = {
   unit: string
   steps: number[]
   run: string
+  configHash: string | null
   panels: { gauged: RolloutSeries[]; ungauged: RolloutSeries[] }
 } | null
 
 export type BasinComparison = {
   basin: string
   split: string
-  persistence: number
-  mlp: number
+  persistence: number | null
+  mlp: number | null
   gcn: number
   gcnSd: number
   gat: number
   gatSd: number
   gatVsGcnPct: number
+  /** lowest and highest per-seed GAT-vs-GCN change in this basin */
+  seedRangePct: [number, number]
 }[] | null
 
 export type AttentionByBasin = { basin: string; r: number; p: number }[] | null
@@ -47,19 +73,149 @@ export type AttentionByBasin = { basin: string; r: number; p: number }[] | null
 export type Ablation = {
   name: string
   detail: string
+  run: string
+  configHash: string | null
   rmse: number
+  rmseHeld: number
   vsRefPct: number | null
-  p: number | null
+  interval: Interval | null
   betterIn: string | null
   attnR: number
 }
 
-export const provenance: { mode: string; runs: string[] } = {
-  "mode": "thesis-repo",
+export type Provenance = {
+  thesisCommit: string | null
+  datasetVersion: string | null
+  runs: { id: string; role: string; configHash: string | null; configPath: string | null; seeds: number[] | null }[]
+  bootstrap: { draws: number; seed: number; level: number; unit: string }
+}
+
+export const provenance: Provenance = {
+  "thesisCommit": "eb484da81eda9c3cecb064c2cbcc06b9fae5e701",
+  "datasetVersion": "864b79098c",
   "runs": [
-    "20260830-192452-1440f965dd-main",
-    "ablations.csv"
-  ]
+    {
+      "id": "20260830-192452-1440f965dd-main",
+      "role": "main",
+      "configHash": "1440f965dd",
+      "configPath": "configs/week5.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "20260831-192438-4e2a31e0b3-abl_time2vec",
+      "role": "ablation",
+      "configHash": "4e2a31e0b3",
+      "configPath": "configs/week5_abl_time2vec.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "20260831-192438-52c5547b20-abl_heads4",
+      "role": "ablation",
+      "configHash": "52c5547b20",
+      "configPath": "configs/week5_abl_heads4.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "20260831-192438-72dd64c403-abl_noedge",
+      "role": "ablation",
+      "configHash": "72dd64c403",
+      "configPath": "configs/week5_abl_noedge.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "20260831-192438-b9b97f5d57-abl_undirected",
+      "role": "ablation",
+      "configHash": "b9b97f5d57",
+      "configPath": "configs/week5_abl_undirected.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "20260831-192438-d7e2f0bbe2-abl_heads8",
+      "role": "ablation",
+      "configHash": "d7e2f0bbe2",
+      "configPath": "configs/week5_abl_heads8.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "20260831-192438-fb58ec3500-abl_heads2",
+      "role": "ablation",
+      "configHash": "fb58ec3500",
+      "configPath": "configs/week5_abl_heads2.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "20260830-145849-092b9d652a",
+      "role": "week4",
+      "configHash": "092b9d652a",
+      "configPath": "configs/week4.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "id": "20260830-150156-cd34e687df-robustness",
+      "role": "week4",
+      "configHash": "cd34e687df",
+      "configPath": "configs/week4_8seed_robustness.yaml",
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "id": "20260830-150740-092b9d652a-repro",
+      "role": "week4",
+      "configHash": "092b9d652a",
+      "configPath": "configs/week4.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
+    }
+  ],
+  "bootstrap": {
+    "draws": 10000,
+    "seed": 20260830,
+    "level": 0.95,
+    "unit": "basins and seeds resampled independently"
+  }
 }
 
 export const metrics: Metric[] = [
@@ -69,7 +225,10 @@ export const metrics: Metric[] = [
     "value": 8,
     "status": "verified",
     "group": "dataset",
-    "source": "flood_routing_dataset/*.csv"
+    "derivation": "recomputed",
+    "source": "provenance/dataset/*.csv",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "nodes",
@@ -77,7 +236,10 @@ export const metrics: Metric[] = [
     "value": 233,
     "status": "verified",
     "group": "dataset",
-    "source": "flood_routing_dataset/*.csv"
+    "derivation": "recomputed",
+    "source": "provenance/dataset/*.csv",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "edges",
@@ -85,8 +247,11 @@ export const metrics: Metric[] = [
     "value": 651,
     "status": "verified",
     "group": "dataset",
+    "derivation": "recomputed",
     "note": "225 routing + 426 message-only (2–3 hops)",
-    "source": "flood_routing_dataset/*.csv"
+    "source": "provenance/dataset/*.csv",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gauged",
@@ -94,7 +259,10 @@ export const metrics: Metric[] = [
     "value": 32,
     "status": "verified",
     "group": "dataset",
-    "source": "flood_routing_dataset/*.csv"
+    "derivation": "recomputed",
+    "source": "provenance/dataset/*.csv",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gauged_pct",
@@ -102,8 +270,11 @@ export const metrics: Metric[] = [
     "value": 13.7,
     "status": "verified",
     "group": "dataset",
+    "derivation": "recomputed",
     "unit": "%",
-    "source": "flood_routing_dataset/*.csv"
+    "source": "provenance/dataset/*.csv",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "mean_tt",
@@ -111,8 +282,11 @@ export const metrics: Metric[] = [
     "value": 7.64,
     "status": "verified",
     "group": "dataset",
+    "derivation": "recomputed",
     "unit": "h",
-    "source": "flood_routing_dataset/*.csv"
+    "source": "provenance/dataset/*.csv",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "horizon_ratio",
@@ -120,9 +294,12 @@ export const metrics: Metric[] = [
     "value": 1.57,
     "status": "verified",
     "group": "dataset",
+    "derivation": "recomputed",
     "unit": "×",
     "note": "12-step rollout",
-    "source": "flood_routing_dataset/*.csv"
+    "source": "provenance/dataset/*.csv",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "real_sections",
@@ -130,8 +307,9 @@ export const metrics: Metric[] = [
     "value": 28,
     "status": "verified",
     "group": "real",
-    "note": "H1–H4 network",
-    "source": "RESULTS.md §W5.1 A1"
+    "derivation": "read",
+    "note": "H1–H4 network; a property of the river, not a result",
+    "source": "provenance/RESULTS.md §W5.1 A1"
   },
   {
     "id": "real_gauges",
@@ -139,8 +317,9 @@ export const metrics: Metric[] = [
     "value": 4,
     "status": "verified",
     "group": "real",
+    "derivation": "read",
     "note": "H1–H4",
-    "source": "RESULTS.md §W5.1 A1"
+    "source": "provenance/RESULTS.md §W5.1 A1"
   },
   {
     "id": "real_ungauged",
@@ -148,18 +327,22 @@ export const metrics: Metric[] = [
     "value": 86,
     "status": "verified",
     "group": "real",
+    "derivation": "read",
     "unit": "%",
     "note": "24 of 28",
-    "source": "RESULTS.md §W5.1 A1"
+    "source": "provenance/RESULTS.md §W5.1 A1"
   },
   {
     "id": "repro",
-    "label": "Reproducibility re-run of a headline table",
+    "label": "Reproducibility re-run of the Week 4 headline table",
     "value": "identical",
     "status": "verified",
     "group": "rigor",
-    "note": "metrics.csv byte-identical to the original run",
-    "source": "RESULTS.md §Week 4 §8"
+    "derivation": "read",
+    "note": "to four decimal places, after all code changes",
+    "source": "provenance/RESULTS.md §Week 4 §8",
+    "run": "20260830-150740-092b9d652a-repro",
+    "configHash": "092b9d652a"
   },
   {
     "id": "mass_balance",
@@ -167,7 +350,10 @@ export const metrics: Metric[] = [
     "value": "1.0000",
     "status": "verified",
     "group": "dataset",
-    "source": "RESULTS.md §W5.1 A5"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §W5.1 A5",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "storm_kernel",
@@ -175,8 +361,11 @@ export const metrics: Metric[] = [
     "value": 0.18,
     "status": "verified",
     "group": "dataset",
+    "derivation": "read",
     "note": "over along-flow position and branch offset",
-    "source": "RESULTS.md §W5.1 A2"
+    "source": "provenance/RESULTS.md §W5.1 A2",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "dry_rise",
@@ -184,9 +373,12 @@ export const metrics: Metric[] = [
     "value": 12.0,
     "status": "verified",
     "group": "dataset",
+    "derivation": "read",
     "unit": "%",
     "note": "samples local forcing cannot explain",
-    "source": "RESULTS.md §W5.1 A2"
+    "source": "provenance/RESULTS.md §W5.1 A2",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "w4_own_r2",
@@ -194,7 +386,11 @@ export const metrics: Metric[] = [
     "value": 0.9998,
     "status": "verified",
     "group": "week4",
-    "source": "RESULTS.md §Week 4 §4b"
+    "derivation": "read",
+    "note": "least squares, out of sample",
+    "source": "provenance/RESULTS.md §Week 4 §4b",
+    "run": "evaluation/graph_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "w4_gain_1h",
@@ -202,53 +398,57 @@ export const metrics: Metric[] = [
     "value": "+0.0001",
     "status": "verified",
     "group": "week4",
-    "source": "RESULTS.md §Week 4 §4b"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §Week 4 §4b",
+    "run": "evaluation/graph_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "w4_gain_6h",
     "label": "Mean R² gain from upstream history, 6 h",
-    "value": "+0.005",
+    "value": "+0.0045",
     "status": "verified",
     "group": "week4",
-    "note": "reported +0.0045",
-    "source": "RESULTS.md §Week 4 §4b"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §Week 4 §4b",
+    "run": "evaluation/graph_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "w4_gain_12h",
     "label": "Mean R² gain from upstream history, 12 h",
-    "value": "−0.014",
+    "value": "−0.0144",
     "status": "verified",
     "group": "week4",
-    "source": "RESULTS.md §Week 4 §4b"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §Week 4 §4b",
+    "run": "evaluation/graph_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
-    "id": "w4_gcn_win",
-    "label": "GCN over MLP, the one basin it won",
-    "value": "+11.2",
+    "id": "w4_gcn_variability",
+    "label": "GCN seed spread relative to the MLP's, held-out basin",
+    "value": "2–4×",
     "status": "verified",
     "group": "week4",
-    "unit": "%",
-    "note": "basin_02, p = 0.039; one basin of three",
-    "source": "RESULTS.md §Week 4 §3"
-  },
-  {
-    "id": "w4_gcn_held",
-    "label": "GCN vs MLP, held-out basin",
-    "value": "−15",
-    "status": "verified",
-    "group": "week4",
-    "unit": "%",
-    "note": "GCN 2–4× more variable across seeds",
-    "source": "RESULTS.md §Week 4 §3"
+    "derivation": "read",
+    "note": "s.d. across seeds",
+    "source": "provenance/RESULTS.md §Week 4 §3",
+    "run": "20260830-145849-092b9d652a",
+    "configHash": "092b9d652a"
   },
   {
     "id": "gate_all",
     "label": "Gate ΔR², all ungauged nodes",
     "value": "+0.181",
-    "status": "verified",
+    "status": "qualified",
     "group": "gate",
-    "note": "threshold 0.05; 7 of 8 basins",
-    "source": "RESULTS.md §W5.2"
+    "derivation": "read",
+    "qualifier": "below the pass mark in basin_08; positive in 7 of 8 basins",
+    "note": "pass mark 0.05; model-free ridge test",
+    "source": "provenance/RESULTS.md §W5.2",
+    "run": "evaluation/gate_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gate_served",
@@ -256,8 +456,11 @@ export const metrics: Metric[] = [
     "value": "+0.242",
     "status": "verified",
     "group": "gate",
-    "note": "8 of 8 basins",
-    "source": "RESULTS.md §W5.2"
+    "derivation": "read",
+    "note": "positive in 8 of 8 basins",
+    "source": "provenance/RESULTS.md §W5.2",
+    "run": "evaluation/gate_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gate_k1",
@@ -265,7 +468,10 @@ export const metrics: Metric[] = [
     "value": "+0.236",
     "status": "verified",
     "group": "gate",
-    "source": "RESULTS.md §W5.2"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §W5.2",
+    "run": "evaluation/gate_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gate_k6",
@@ -273,7 +479,10 @@ export const metrics: Metric[] = [
     "value": "+0.241",
     "status": "verified",
     "group": "gate",
-    "source": "RESULTS.md §W5.2"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §W5.2",
+    "run": "evaluation/gate_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gate_k12",
@@ -281,7 +490,10 @@ export const metrics: Metric[] = [
     "value": "+0.247",
     "status": "verified",
     "group": "gate",
-    "source": "RESULTS.md §W5.2"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §W5.2",
+    "run": "evaluation/gate_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gate_b08",
@@ -289,8 +501,11 @@ export const metrics: Metric[] = [
     "value": "−0.005",
     "status": "verified",
     "group": "gate",
+    "derivation": "read",
     "note": "10 of 26 ungauged nodes have no gauged ancestor",
-    "source": "RESULTS.md §W5.2"
+    "source": "provenance/RESULTS.md §W5.2",
+    "run": "evaluation/gate_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gate_b08_served",
@@ -298,7 +513,10 @@ export const metrics: Metric[] = [
     "value": "+0.012",
     "status": "verified",
     "group": "gate",
-    "source": "RESULTS.md §W5.2"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §W5.2",
+    "run": "evaluation/gate_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "gate_coverage",
@@ -306,9 +524,12 @@ export const metrics: Metric[] = [
     "value": 63,
     "status": "verified",
     "group": "gate",
+    "derivation": "read",
     "unit": "%",
     "note": "126 of 201",
-    "source": "RESULTS.md §W5.2"
+    "source": "provenance/RESULTS.md §W5.2",
+    "run": "evaluation/gate_information_test.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "trap_untrained",
@@ -316,17 +537,23 @@ export const metrics: Metric[] = [
     "value": 0.956,
     "status": "verified",
     "group": "attention",
+    "derivation": "read",
     "note": "the false headline the metric would have produced",
-    "source": "RESULTS.md §W5.5"
+    "source": "provenance/RESULTS.md §W5.5",
+    "run": "evaluation/test_attention_eval.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "trap_confound",
-    "label": "within-node r(reach length, travel time)",
+    "label": "Within-node r(reach length, travel time)",
     "value": "+0.97 to +0.99",
     "status": "verified",
     "group": "attention",
+    "derivation": "read",
     "note": "hop count drives both",
-    "source": "RESULTS.md §W5.5"
+    "source": "provenance/RESULTS.md §W5.5",
+    "run": "flood_routing_dataset@864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "ref_routing",
@@ -334,8 +561,11 @@ export const metrics: Metric[] = [
     "value": 0.698,
     "status": "verified",
     "group": "attention",
-    "note": "re-derived on the Week 5 dataset",
-    "source": "RESULTS.md §W5.1 A5"
+    "derivation": "read",
+    "note": "re-derived on the Week 5 dataset; also in the run's config.yaml",
+    "source": "provenance/RESULTS.md §W5.1 A5",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "ref_all",
@@ -343,7 +573,10 @@ export const metrics: Metric[] = [
     "value": 0.769,
     "status": "verified",
     "group": "attention",
-    "source": "RESULTS.md §W5.1 A5"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §W5.1 A5",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "att_local_area",
@@ -351,8 +584,11 @@ export const metrics: Metric[] = [
     "value": "+0.870",
     "status": "verified",
     "group": "attention",
-    "note": "sign-consistent 8 of 8 basins",
-    "source": "RESULTS.md §W5.5"
+    "derivation": "read",
+    "note": "sign-consistent in 8 of 8 basins",
+    "source": "provenance/RESULTS.md §W5.5",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "att_mean_q",
@@ -360,8 +596,11 @@ export const metrics: Metric[] = [
     "value": "+0.845",
     "status": "verified",
     "group": "attention",
+    "derivation": "read",
     "note": "significant in 8 of 8",
-    "source": "RESULTS.md §W5.5"
+    "source": "provenance/RESULTS.md §W5.5",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "att_drainage",
@@ -369,8 +608,11 @@ export const metrics: Metric[] = [
     "value": "+0.844",
     "status": "verified",
     "group": "attention",
+    "derivation": "read",
     "note": "significant in 8 of 8",
-    "source": "RESULTS.md §W5.5"
+    "source": "provenance/RESULTS.md §W5.5",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "att_reach",
@@ -378,8 +620,11 @@ export const metrics: Metric[] = [
     "value": "+0.062",
     "status": "verified",
     "group": "attention",
+    "derivation": "read",
     "note": "5 of 8 basins",
-    "source": "RESULTS.md §W5.5"
+    "source": "provenance/RESULTS.md §W5.5",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "tests_passing",
@@ -387,26 +632,128 @@ export const metrics: Metric[] = [
     "value": 33,
     "status": "verified",
     "group": "rigor",
-    "source": "RESULTS.md §W5.5"
+    "derivation": "read",
+    "source": "provenance/RESULTS.md §W5.5",
+    "run": "evaluation/test_attention_eval.py on dataset 864b79098c",
+    "configHash": "864b79098c"
   },
   {
     "id": "undir_coverage_r",
-    "label": "Undirected gain vs upstream gauge coverage",
+    "label": "Undirected gain vs upstream gauge coverage, r",
     "value": "−0.06",
     "status": "verified",
     "group": "ablation",
+    "derivation": "read",
     "note": "the obvious mechanism fails",
-    "source": "RESULTS.md §W5.6"
+    "source": "provenance/RESULTS.md §W5.6",
+    "run": "20260831-192438-b9b97f5d57-abl_undirected",
+    "configHash": "b9b97f5d57"
+  },
+  {
+    "id": "w4_gcn_win",
+    "label": "GCN over MLP, the one basin it won",
+    "value": "+11.1",
+    "status": "qualified",
+    "group": "week4",
+    "derivation": "recomputed",
+    "unit": "%",
+    "qualifier": "one basin of three; 8 seeds; 95% interval +3.7% to +19.2%",
+    "note": "basin_02; positive = GCN better",
+    "source": "provenance/runs/20260830-150156-cd34e687df-robustness/metrics_per_seed.csv",
+    "run": "20260830-150156-cd34e687df-robustness",
+    "configHash": "cd34e687df",
+    "interval": {
+      "lo": 3.739,
+      "hi": 19.175,
+      "level": 0.95,
+      "method": "bootstrap over 8 seeds per model, 10000 draws; percentile"
+    }
+  },
+  {
+    "id": "w4_gcn_held",
+    "label": "GCN vs MLP, held-out basin",
+    "value": "-15.5",
+    "status": "qualified",
+    "group": "week4",
+    "derivation": "recomputed",
+    "unit": "%",
+    "qualifier": "8 seeds; interval spans zero; 95% interval −35.6% to +0.2%",
+    "note": "basin_03; positive = GCN better",
+    "source": "provenance/runs/20260830-150156-cd34e687df-robustness/metrics_per_seed.csv",
+    "run": "20260830-150156-cd34e687df-robustness",
+    "configHash": "cd34e687df",
+    "interval": {
+      "lo": -35.614,
+      "hi": 0.248,
+      "level": 0.95,
+      "method": "bootstrap over 8 seeds per model, 10000 draws; percentile"
+    }
+  },
+  {
+    "id": "gat_vs_gcn_held",
+    "label": "GAT over GCN, held-out basins only",
+    "value": "+8.86",
+    "status": "qualified",
+    "group": "heldout",
+    "derivation": "recomputed",
+    "unit": "%",
+    "qualifier": "95% interval −2.9% to +17.2%; 2 basins, 3 seeds; interval spans zero",
+    "note": "basin_07, basin_08 were never trained on",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "interval": {
+      "lo": -2.903,
+      "hi": 17.209,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 2 basins and 3 seeds with replacement; percentile"
+    },
+    "supersedes": "paired t over 3 seed means, p = 0.159"
+  },
+  {
+    "id": "gat_rmse_held",
+    "label": "GAT ungauged RMSE, held-out basins",
+    "value": 3.505,
+    "status": "verified",
+    "group": "heldout",
+    "derivation": "recomputed",
+    "unit": "m³/s",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
+  },
+  {
+    "id": "gcn_rmse_held",
+    "label": "GCN ungauged RMSE, held-out basins",
+    "value": 3.846,
+    "status": "verified",
+    "group": "heldout",
+    "derivation": "recomputed",
+    "unit": "m³/s",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "gat_vs_gcn",
     "label": "GAT over GCN, ungauged discharge RMSE",
     "value": "+7.79",
-    "status": "verified",
+    "status": "qualified",
     "group": "model",
+    "derivation": "recomputed",
     "unit": "%",
-    "note": "paired t over 3 seeds, p = 0.038",
-    "source": "results/20260830-192452-1440f965dd-main/metrics_per_seed.csv"
+    "qualifier": "95% interval +2.5% to +13.6%, 3 seeds × 8 basins; held-out basins alone +8.86%, interval spans zero",
+    "note": "pooled over all 8 basins, including the 2 held out; positive = GAT better",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "interval": {
+      "lo": 2.529,
+      "hi": 13.624,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    },
+    "supersedes": "paired t over 3 seed means, p = 0.038. Replaced: the clustered interval excludes zero, so the direction holds"
   },
   {
     "id": "gat_rmse",
@@ -414,8 +761,11 @@ export const metrics: Metric[] = [
     "value": 3.566,
     "status": "verified",
     "group": "model",
+    "derivation": "recomputed",
     "unit": "m³/s",
-    "source": "results/20260830-192452-1440f965dd-main/metrics_per_seed.csv"
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "gcn_rmse",
@@ -423,35 +773,36 @@ export const metrics: Metric[] = [
     "value": 3.867,
     "status": "verified",
     "group": "model",
+    "derivation": "recomputed",
     "unit": "m³/s",
-    "source": "results/20260830-192452-1440f965dd-main/metrics_per_seed.csv"
-  },
-  {
-    "id": "gat_vs_gcn_held",
-    "label": "GAT over GCN, held-out basins only",
-    "value": "+8.86",
-    "status": "verified",
-    "group": "model",
-    "unit": "%",
-    "note": "p = 0.159 — underpowered at 3 seeds",
-    "source": "results/20260830-192452-1440f965dd-main/metrics_per_seed.csv"
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "gat_pair_wins",
     "label": "Basin–seed pairs where GAT beats GCN",
     "value": "17 / 24",
-    "status": "verified",
+    "status": "qualified",
     "group": "model",
-    "note": "t-test on per-pair relative change, p = 1.3e-03",
-    "source": "results/20260830-192452-1440f965dd-main/metrics_per_seed.csv"
+    "derivation": "recomputed",
+    "qualifier": "pairs share basins and seeds, so this is not 24 independent wins",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "supersedes": "one-sample t over 24 pairs as if independent, p = 1.3e-03"
   },
   {
     "id": "gat_basins_won",
-    "label": "Basins where GAT beats GCN",
+    "label": "Basins where GAT's 3-seed mean beats GCN's",
     "value": "8 / 8",
     "status": "verified",
     "group": "model",
-    "source": "results/20260830-192452-1440f965dd-main/metrics_per_seed.csv"
+    "derivation": "recomputed",
+    "note": "by up to 18% in some basins and under 1% in others",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "gat_vs_mlp",
@@ -459,25 +810,56 @@ export const metrics: Metric[] = [
     "value": "+41.0",
     "status": "verified",
     "group": "model",
+    "derivation": "recomputed",
     "unit": "%",
-    "source": "results/20260830-192452-1440f965dd-main/metrics_per_seed.csv"
+    "note": "95% interval +24.2% to +57.9%",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "interval": {
+      "lo": 24.161,
+      "hi": 57.854,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    }
   },
   {
     "id": "att_tt_r",
     "label": "Attention vs travel time, hop-stratified r",
     "value": "+0.017",
-    "status": "verified",
+    "status": "qualified",
     "group": "attention",
+    "derivation": "recomputed",
+    "qualifier": "chance level, 95% interval −0.324 to +0.379; reach-length baseline scores +0.438; seeds agree at +0.386",
     "note": "all message edges; permutation null, 1000 draws",
-    "source": "results/20260830-192452-1440f965dd-main/attention_scores.csv"
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/attention_scores.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "interval": {
+      "lo": -0.324,
+      "hi": 0.379,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    }
   },
   {
     "id": "att_tt_r_routing",
     "label": "Attention vs travel time, routing edges",
     "value": "-0.129",
-    "status": "verified",
+    "status": "qualified",
     "group": "attention",
-    "source": "results/20260830-192452-1440f965dd-main/attention_scores.csv"
+    "derivation": "recomputed",
+    "qualifier": "wrong sign, chance level, 95% interval −0.557 to +0.320; reach-length baseline scores +0.438; seeds agree at +0.386",
+    "note": "one-hop routing edges only",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/attention_scores.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "interval": {
+      "lo": -0.557,
+      "hi": 0.32,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    }
   },
   {
     "id": "att_confound",
@@ -485,8 +867,35 @@ export const metrics: Metric[] = [
     "value": "+0.438",
     "status": "verified",
     "group": "attention",
-    "note": "attention does not beat it",
-    "source": "results/20260830-192452-1440f965dd-main/attention_scores.csv"
+    "derivation": "recomputed",
+    "note": "95% interval +0.017 to +0.800",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/attention_scores.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "interval": {
+      "lo": 0.017,
+      "hi": 0.8,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    }
+  },
+  {
+    "id": "att_vs_confound",
+    "label": "Attention minus the reach-length baseline",
+    "value": "-0.421",
+    "status": "verified",
+    "group": "attention",
+    "derivation": "recomputed",
+    "note": "95% interval −0.823 to −0.067",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/attention_scores.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "interval": {
+      "lo": -0.823,
+      "hi": -0.067,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    }
   },
   {
     "id": "att_entropy",
@@ -494,8 +903,11 @@ export const metrics: Metric[] = [
     "value": 0.875,
     "status": "verified",
     "group": "attention",
+    "derivation": "recomputed",
     "note": "1.0 = uniform over incoming edges",
-    "source": "results/20260830-192452-1440f965dd-main/attention_scores.csv"
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/attention_scores.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "att_sign",
@@ -503,26 +915,49 @@ export const metrics: Metric[] = [
     "value": "3 / 8",
     "status": "verified",
     "group": "attention",
-    "source": "results/20260830-192452-1440f965dd-main/attention_scores.csv"
+    "derivation": "recomputed",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/attention_scores.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd"
   },
   {
     "id": "att_seed_r",
     "label": "Attention agreement between seeds",
     "value": "+0.386",
-    "status": "verified",
+    "status": "qualified",
     "group": "attention",
-    "note": "moderate; show attention across seeds, not from one",
-    "source": "results/20260830-192452-1440f965dd-main/attention_seed_consistency.csv"
+    "derivation": "recomputed",
+    "qualifier": "patterns not stable across seeds; 95% interval +0.294 to +0.483",
+    "source": "provenance/runs/20260830-192452-1440f965dd-main/attention_seed_consistency.csv",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
+    "interval": {
+      "lo": 0.294,
+      "hi": 0.483,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins with replacement; percentile"
+    }
   },
   {
     "id": "undirected_gain",
     "label": "Undirected graph vs directed reference",
     "value": "+11.1",
-    "status": "verified",
+    "status": "qualified",
     "group": "ablation",
+    "derivation": "recomputed",
     "unit": "%",
-    "note": "p = 0.012, better in 14/24 pairs — larger than the GAT gain",
-    "source": "results/ablations.csv"
+    "qualifier": "95% interval −4.2% to +25.5%; better in only 14/24 pairs; mechanism unexplained",
+    "note": "mean per-pair relative change, as in RESULTS.md",
+    "source": "provenance/runs/20260831-192438-b9b97f5d57-abl_undirected/metrics_per_seed.csv",
+    "run": "20260831-192438-b9b97f5d57-abl_undirected",
+    "configHash": "b9b97f5d57",
+    "interval": {
+      "lo": -4.155,
+      "hi": 25.507,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    },
+    "supersedes": "one-sample t over 24 pairs as if independent, p = 0.012"
   },
   {
     "id": "real_gat_rmse",
@@ -530,6 +965,7 @@ export const metrics: Metric[] = [
     "value": "—",
     "status": "pending",
     "group": "real",
+    "derivation": "recomputed",
     "unit": "m³/s",
     "note": "Real network: 4 gauges, 28 cross-sections. Not yet run."
   },
@@ -539,8 +975,9 @@ export const metrics: Metric[] = [
     "value": "—",
     "status": "pending",
     "group": "real",
+    "derivation": "recomputed",
     "unit": "%",
-    "note": "Synthetic results above do not transfer automatically."
+    "note": "Synthetic results do not transfer automatically."
   },
   {
     "id": "temporal_att_tt",
@@ -548,8 +985,9 @@ export const metrics: Metric[] = [
     "value": "—",
     "status": "pending",
     "group": "real",
+    "derivation": "recomputed",
     "unit": "r",
-    "note": "Week 6: lag may appear on the temporal axis, not the spatial one."
+    "note": "Next experiment: lag may appear on the temporal axis, not the spatial one."
   },
   {
     "id": "undir_mechanism",
@@ -557,6 +995,7 @@ export const metrics: Metric[] = [
     "value": "—",
     "status": "pending",
     "group": "real",
+    "derivation": "recomputed",
     "note": "Effect measured; mechanism unconfirmed."
   }
 ]
@@ -579,6 +1018,7 @@ export const rollout: Rollout = {
     12
   ],
   "run": "20260830-192452-1440f965dd-main",
+  "configHash": "1440f965dd",
   "panels": {
     "gauged": [
       {
@@ -738,10 +1178,14 @@ export const basinComparison: BasinComparison = [
     "persistence": 8.603,
     "mlp": 2.992,
     "gcn": 1.095,
-    "gcnSd": 0.131,
+    "gcnSd": 0.105,
     "gat": 1.091,
-    "gatSd": 0.104,
-    "gatVsGcnPct": 0.3
+    "gatSd": 0.096,
+    "gatVsGcnPct": 0.3,
+    "seedRangePct": [
+      -14.47,
+      16.28
+    ]
   },
   {
     "basin": "basin_02",
@@ -749,10 +1193,14 @@ export const basinComparison: BasinComparison = [
     "persistence": 10.999,
     "mlp": 4.862,
     "gcn": 3.674,
-    "gcnSd": 0.408,
+    "gcnSd": 0.369,
     "gat": 3.67,
-    "gatSd": 0.117,
-    "gatVsGcnPct": 0.11
+    "gatSd": 0.06,
+    "gatVsGcnPct": 0.11,
+    "seedRangePct": [
+      -10.84,
+      11.48
+    ]
   },
   {
     "basin": "basin_03",
@@ -760,10 +1208,14 @@ export const basinComparison: BasinComparison = [
     "persistence": 15.828,
     "mlp": 7.745,
     "gcn": 5.083,
-    "gcnSd": 0.06,
+    "gcnSd": 0.046,
     "gat": 4.541,
-    "gatSd": 0.082,
-    "gatVsGcnPct": 10.66
+    "gatSd": 0.061,
+    "gatVsGcnPct": 10.66,
+    "seedRangePct": [
+      9.33,
+      12.83
+    ]
   },
   {
     "basin": "basin_04",
@@ -771,10 +1223,14 @@ export const basinComparison: BasinComparison = [
     "persistence": 12.274,
     "mlp": 8.357,
     "gcn": 2.758,
-    "gcnSd": 0.136,
+    "gcnSd": 0.118,
     "gat": 2.254,
-    "gatSd": 0.146,
-    "gatVsGcnPct": 18.28
+    "gatSd": 0.089,
+    "gatVsGcnPct": 18.28,
+    "seedRangePct": [
+      10.47,
+      23.52
+    ]
   },
   {
     "basin": "basin_05",
@@ -782,10 +1238,14 @@ export const basinComparison: BasinComparison = [
     "persistence": 11.322,
     "mlp": 4.422,
     "gcn": 2.245,
-    "gcnSd": 0.128,
+    "gcnSd": 0.11,
     "gat": 1.856,
-    "gatSd": 0.071,
-    "gatVsGcnPct": 17.34
+    "gatSd": 0.041,
+    "gatVsGcnPct": 17.34,
+    "seedRangePct": [
+      14.22,
+      19.84
+    ]
   },
   {
     "basin": "basin_06",
@@ -793,10 +1253,14 @@ export const basinComparison: BasinComparison = [
     "persistence": 26.671,
     "mlp": 9.088,
     "gcn": 8.392,
-    "gcnSd": 0.384,
+    "gcnSd": 0.38,
     "gat": 8.107,
-    "gatSd": 0.165,
-    "gatVsGcnPct": 3.4
+    "gatSd": 0.114,
+    "gatVsGcnPct": 3.4,
+    "seedRangePct": [
+      -1.24,
+      8.84
+    ]
   },
   {
     "basin": "basin_07",
@@ -804,10 +1268,14 @@ export const basinComparison: BasinComparison = [
     "persistence": 10.618,
     "mlp": 6.113,
     "gcn": 3.249,
-    "gcnSd": 0.155,
+    "gcnSd": 0.148,
     "gat": 2.914,
-    "gatSd": 0.236,
-    "gatVsGcnPct": 10.33
+    "gatSd": 0.204,
+    "gatVsGcnPct": 10.33,
+    "seedRangePct": [
+      -1.24,
+      19.53
+    ]
   },
   {
     "basin": "basin_08",
@@ -815,10 +1283,14 @@ export const basinComparison: BasinComparison = [
     "persistence": 13.417,
     "mlp": 4.768,
     "gcn": 4.442,
-    "gcnSd": 0.438,
+    "gcnSd": 0.42,
     "gat": 4.096,
-    "gatSd": 0.33,
-    "gatVsGcnPct": 7.79
+    "gatSd": 0.294,
+    "gatVsGcnPct": 7.79,
+    "seedRangePct": [
+      -8.05,
+      22.26
+    ]
   }
 ]
 
@@ -869,63 +1341,114 @@ export const ablations: Ablation[] | null = [
   {
     "name": "reference (B1)",
     "detail": "heads=1 edge_dim=2 t2v=False undir=False",
+    "run": "20260830-192452-1440f965dd-main",
+    "configHash": "1440f965dd",
     "rmse": 3.566,
+    "rmseHeld": 3.505,
     "vsRefPct": null,
-    "p": null,
+    "interval": null,
     "betterIn": null,
     "attnR": 0.017
   },
   {
     "name": "time2vec",
     "detail": "heads=1 edge_dim=2 t2v=True undir=False",
+    "run": "20260831-192438-4e2a31e0b3-abl_time2vec",
+    "configHash": "4e2a31e0b3",
     "rmse": 3.491,
+    "rmseHeld": 3.353,
     "vsRefPct": 4.01,
-    "p": 0.051,
+    "interval": {
+      "lo": -0.95,
+      "hi": 10.464,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    },
     "betterIn": "17/24",
     "attnR": 0.013
   },
   {
     "name": "heads4",
     "detail": "heads=4 edge_dim=2 t2v=False undir=False",
+    "run": "20260831-192438-52c5547b20-abl_heads4",
+    "configHash": "52c5547b20",
     "rmse": 3.591,
+    "rmseHeld": 3.339,
     "vsRefPct": -3.32,
-    "p": 0.303,
+    "interval": {
+      "lo": -16.266,
+      "hi": 6.317,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    },
     "betterIn": "9/24",
     "attnR": 0.058
   },
   {
     "name": "noedge",
     "detail": "heads=1 edge_dim=0 t2v=False undir=False",
+    "run": "20260831-192438-72dd64c403-abl_noedge",
+    "configHash": "72dd64c403",
     "rmse": 3.52,
+    "rmseHeld": 3.338,
     "vsRefPct": 2.1,
-    "p": 0.236,
+    "interval": {
+      "lo": -3.169,
+      "hi": 8.646,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    },
     "betterIn": "15/24",
     "attnR": 0.013
   },
   {
     "name": "undirected",
     "detail": "heads=1 edge_dim=2 t2v=False undir=True",
+    "run": "20260831-192438-b9b97f5d57-abl_undirected",
+    "configHash": "b9b97f5d57",
     "rmse": 2.931,
+    "rmseHeld": 3.051,
     "vsRefPct": 11.13,
-    "p": 0.012,
+    "interval": {
+      "lo": -4.155,
+      "hi": 25.507,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    },
     "betterIn": "14/24",
     "attnR": 0.025
   },
   {
     "name": "heads8",
     "detail": "heads=8 edge_dim=2 t2v=False undir=False",
+    "run": "20260831-192438-d7e2f0bbe2-abl_heads8",
+    "configHash": "d7e2f0bbe2",
     "rmse": 3.549,
+    "rmseHeld": 3.403,
     "vsRefPct": 0.01,
-    "p": 0.996,
+    "interval": {
+      "lo": -7.789,
+      "hi": 6.748,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    },
     "betterIn": "12/24",
     "attnR": 0.087
   },
   {
     "name": "heads2",
     "detail": "heads=2 edge_dim=2 t2v=False undir=False",
+    "run": "20260831-192438-fb58ec3500-abl_heads2",
+    "configHash": "fb58ec3500",
     "rmse": 3.512,
+    "rmseHeld": 3.348,
     "vsRefPct": 1.5,
-    "p": 0.386,
+    "interval": {
+      "lo": -2.678,
+      "hi": 6.986,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 8 basins and 3 seeds with replacement; percentile"
+    },
     "betterIn": "13/24",
     "attnR": 0.077
   }

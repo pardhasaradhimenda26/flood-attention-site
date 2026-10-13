@@ -123,6 +123,11 @@
   }
 }
 
+/*
+  Reduced motion, site-wide: animations stop, smooth scrolling stops, and any
+  transition that moves or resizes something drops to an opacity change.
+  Applied by the media query and by ?motion=reduce (data-motion on <html>).
+*/
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -130,5 +135,14 @@
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
+    transition-property: opacity !important;
   }
+}
+html[data-motion='reduce'] *,
+html[data-motion='reduce'] *::before,
+html[data-motion='reduce'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-property: opacity !important;
 }

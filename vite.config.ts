@@ -1,5 +1,8 @@
+/// <reference types="vitest/config" />
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { site } from './src/data/content'
+import { metaDescription, noscriptHtml } from './src/lib/summary'
 
 /** Preload the two fonts the first screen needs (Archivo latin, Plex Mono latin 400). */
 function preloadFonts(): Plugin {
@@ -22,10 +25,45 @@ function preloadFonts(): Plugin {
   }
 }
 
+/**
+ * The HTML shell's text, generated from results.ts: meta description, canonical
+ * URL, Open Graph and Twitter tags, and a real noscript summary of the findings,
+ * nulls included. Crawlers and link previews read the same numbers the page shows.
+ */
+function staticShell(): Plugin {
+  const title = 'Flood wave attention — what held, and what did not'
+  return {
+    name: 'static-shell',
+    transformIndexHtml(html) {
+      const desc = metaDescription()
+      const og = `${site.url.endsWith('/') ? site.url : `${site.url}/`}og.png`
+      return {
+        html: html.replace('<!--static-summary-->', noscriptHtml()),
+        tags: [
+          ['meta', { name: 'description', content: desc }],
+          ['link', { rel: 'canonical', href: site.url }],
+          ['meta', { property: 'og:type', content: 'website' }],
+          ['meta', { property: 'og:title', content: title }],
+          ['meta', { property: 'og:description', content: desc }],
+          ['meta', { property: 'og:url', content: site.url }],
+          ['meta', { property: 'og:image', content: og }],
+          ['meta', { property: 'og:image:width', content: '1200' }],
+          ['meta', { property: 'og:image:height', content: '630' }],
+          ['meta', { property: 'og:image:alt', content: 'A flood pulse travelling down a river network in a dark valley, beside the headline “Four gauges, twenty-eight cross-sections.”' }],
+          ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+          ['meta', { name: 'twitter:title', content: title }],
+          ['meta', { name: 'twitter:description', content: desc }],
+          ['meta', { name: 'twitter:image', content: og }],
+        ].map(([tag, attrs]) => ({ tag: tag as string, attrs: attrs as Record<string, string>, injectTo: 'head' as const })),
+      }
+    },
+  }
+}
+
 // Relative base so dist/ works from any static host or sub-path.
 export default defineConfig({
   base: './',
-  plugins: [react(), preloadFonts()],
+  plugins: [react(), preloadFonts(), staticShell()],
   build: {
     target: 'es2020',
     chunkSizeWarningLimit: 900,
@@ -39,5 +77,11 @@ export default defineConfig({
         },
       },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    include: ['src/**/*.test.{ts,tsx}', 'tests/**/*.test.ts'],
+    setupFiles: ['src/test/setup.ts'],
+    testTimeout: 20000,
   },
 })

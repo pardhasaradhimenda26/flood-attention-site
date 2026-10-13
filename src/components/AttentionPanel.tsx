@@ -43,7 +43,7 @@ export function AttentionPanel() {
       const s = nodeById.get(e.source)!
       return { e, s, w: weightOf(e, mode, step), range: learned ? learnedRange(e.id, step) : null }
     })
-    .sort((a, b) => (learned ? b.w - a.w : a.e.hops - b.e.hops || a.e.travelTimeHours - b.e.travelTimeHours))
+    .sort((a, b) => (learned ? b.w - a.w : a.e.hops - b.e.hops || a.e.reachLengthM - b.e.reachLengthM))
   const self = selfWeight(node.id, mode, step)
   const max = Math.max(self, ...rows.map((r) => r.w), 0.01)
   const isConf = confluences.some((c) => c.id === node.id)

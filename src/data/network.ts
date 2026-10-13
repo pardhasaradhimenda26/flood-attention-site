@@ -1,6 +1,6 @@
 // GENERATED FILE — DO NOT HAND-EDIT.
-// Written by scripts/generate_data.py on 2026-10-07 14:49.
-// Mode: thesis-repo. Source: C:/Machine Learning Project
+// Written by scripts/generate_data.py on 2026-10-13 16:25.
+// Mode: thesis-repo. Source: thesis repository @ eb484da
 // Re-run the script to update. Any manual change here is overwritten.
 
 export type NetNode = {

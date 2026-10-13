@@ -4,6 +4,7 @@ import { line } from 'd3-shape'
 import { rollout, type ModelKey, type RolloutSeries } from '../data/results'
 import { useMeasure } from '../lib/useMeasure'
 import { fmt } from '../lib/format'
+import { logTicks, spreadLabels } from '../lib/chart'
 
 /*
   Error against rollout step, one line per model, gauged and ungauged nodes in
@@ -37,13 +38,10 @@ function Panel({ title, series, steps, cursor, setCursor }: { title: string; ser
     .domain([Math.min(...all) * 0.85, Math.max(...all) * 1.15])
     .range([height - m.b, m.t])
   const L = line<number>().x((_, i) => x(steps[i])).y((d) => y(d))
-  const ticks = [0.25, 0.5, 1, 2, 4, 8, 16, 32].filter((t) => t >= y.domain()[0] && t <= y.domain()[1])
+  const ticks = logTicks(y.domain()[0], y.domain()[1])
 
   // Spread end labels so they do not overlap.
-  const ends = drawn
-    .map((s) => ({ s, y: y(s.values[s.values.length - 1]) }))
-    .sort((a, b) => a.y - b.y)
-  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14
+  const ends = spreadLabels(drawn.map((s) => ({ item: s, y: y(s.values[s.values.length - 1]) }))).map(({ item, y }) => ({ s: item, y }))
 
   const onMove = (e: PointerEvent<SVGRectElement>) => {
     const r = e.currentTarget.getBoundingClientRect()

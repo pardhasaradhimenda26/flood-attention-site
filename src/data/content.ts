@@ -15,6 +15,8 @@ export const site = {
   institution: 'SRM Institute of Science and Technology',
   github: 'https://github.com/pardhasaradhimenda26',
   githubHandle: 'pardhasaradhimenda26',
+  repo: 'https://github.com/pardhasaradhimenda26/flood-attention-site',
+  url: 'https://flood-attention-site.vercel.app/',
 }
 
 export const hero = {
@@ -23,10 +25,10 @@ export const hero = {
     'A temporal graph attention network that passes messages down a river network to forecast discharge where nothing is measured. Built and tested on eight synthetic basins with the real network’s proportions, ahead of the real gauge record.',
   readings: [
     { metric: 'real_ungauged', caption: 'of the real network’s cross-sections have no gauge' },
-    { metric: 'gat_vs_gcn', caption: 'lower error than a GCN at ungauged sections, across eight synthetic basins' },
+    { metric: 'gat_vs_gcn', caption: 'lower error than a GCN at ungauged sections, pooled over eight synthetic basins' },
     {
       metric: 'att_tt_r',
-      caption: 'correlation between learned attention and travel time. Chance level — see findings',
+      caption: 'correlation between learned attention and travel time — the thesis’s main claim, which did not hold',
       pendingCaption: 'correlation between learned attention and travel time, once the GAT run is in',
     },
   ],
@@ -38,6 +40,43 @@ export const hero = {
   frozen: 'Reduced motion: held at the moment the main-stem peak reaches the confluence',
   tableSummary: 'Wave arrival at each gauge, from the summed travel time of the reaches above it',
 }
+
+export const verdict = {
+  heading: 'What held, and what did not',
+  intro:
+    'The project tested two claims. Attention improved accuracy over a GCN, by a margin that is real but uncertain. Attention did not learn travel time, which was the thesis’s main contribution. Results on the real gauges are pending.',
+  accuracy: {
+    title: 'Accuracy: a qualified gain',
+    claim: 'Claim: replacing the GCN’s fixed average with learned attention lowers forecast error at ungauged sections.',
+    caption:
+      'Lower ungauged discharge error than the GCN, pooled over all eight synthetic basins. The interval resamples basins and seeds, because basin–seed pairs that share either are not independent.',
+    heldTitle: 'Held-out basins, reported separately',
+    heldCaption: 'The two basins never seen in training, on their own. Two basins and three seeds are too few to establish transfer.',
+  },
+  attention: {
+    title: 'Interpretability: did not hold',
+    claim:
+      'Claim: attention weights recover each reach’s hydraulic travel time above chance. Measured with a hop-stratified correlation against a permutation null.',
+    captions: {
+      att_tt_r: 'Trained attention vs travel time, all message edges.',
+      att_tt_r_routing: 'The same on one-hop routing edges. Wrong sign.',
+      att_confound: 'What reach length alone scores. A trivial input does better than the learned attention.',
+      att_seed_r: 'How closely three seeds agree on their attention. The patterns are not stable.',
+    } as Record<string, string>,
+    chartCaption:
+      'All four on one correlation axis, each with its 95% interval. Squares are point estimates; dashed intervals are qualified, solid verified. The reach-length baseline sits to the right of both attention correlations.',
+    gap: 'Attention minus the reach-length baseline',
+  },
+  pendingLabel: 'Real gauges H1–H4, GAT vs GCN',
+}
+
+/** The interpretability result in one view, in this order (Verdict section). */
+export const VERDICT_ROWS = [
+  { id: 'att_tt_r', label: 'Attention vs travel time, all message edges' },
+  { id: 'att_tt_r_routing', label: 'Attention vs travel time, routing edges' },
+  { id: 'att_confound', label: 'Reach length alone, the confound baseline' },
+  { id: 'att_seed_r', label: 'Attention agreement between seeds' },
+]
 
 export const problem = {
   heading: 'Most of a river is never measured',
@@ -149,12 +188,12 @@ export const findings = {
   week4: {
     title: 'Week 4: the graph had nothing to add',
     paragraphs: [
-      'The first version forecast discharge one to twelve hours ahead at every node, with every node’s own history available. A graph network could not reliably beat a graph-blind MLP. It won on one basin of three ({gcnWin}%, p = 0.039), was 15% worse on the held-out basin, and was two to four times more variable across seeds.',
+      'The first version forecast discharge one to twelve hours ahead at every node, with every node’s own history available. A graph network could not reliably beat a graph-blind MLP. Over eight seeds it won on one basin of three ({gcnWin}%, {gcnWinCi}), was {gcnHeld}% on the held-out basin ({gcnHeldCi}), and was {variability} more variable across seeds there.',
       'A model-free test found why. Least squares on a node’s own 24-hour history explained R² = {ownR2} of its discharge one hour ahead. Adding every upstream neighbour’s history moved mean R² by {g6} at six hours and {g12} at twelve. There was no residual left for a neighbour to explain.',
-      'That is a verdict on the task, not on graph networks: a node with its own gauge does not need its neighbours. So the task changed. Gauges were masked at 86% of nodes, storms were localised, and reaches were lengthened until the 12-hour horizon spanned 1.57 travel times.',
+      'That is a verdict on the task, not on graph networks: a node with its own gauge does not need its neighbours. So the task changed. Gauges were removed from {masked}% of nodes, storms were localised, and reaches were lengthened until the 12-hour horizon spanned {horizon} mean travel times.',
     ],
     gate:
-      'Before any attention model was trained, the same test was re-run as a gate with a pass mark of ΔR² > 0.05. Upstream gauges now add {gateAll} at ungauged nodes on average, and {gateServed} where a gauged ancestor is in reach — 3.6 and 4.8 times the threshold. The gain grows with lead time, from {k1} at one hour to {k12} at twelve.',
+      'Before any attention model was trained, the same test was re-run as a gate with a pass mark of ΔR² > 0.05. Upstream gauges now add {gateAll} at ungauged nodes on average, and {gateServed} where a gauged ancestor is in reach — {xAll} and {xServed} times the threshold. The gain grows with lead time, from {k1} at one hour to {k12} at twelve.',
     exception:
       'One basin fell short, at {b08}. Ten of its 26 ungauged nodes have no gauged ancestor in reach; restricted to nodes the graph can serve, it gains {b08s}. Across all basins only {coverage}% of ungauged nodes have a gauged ancestor within nine hops, which caps what any graph model can do for the rest.',
     chartCaption: 'Mean R² gained by adding upstream information, by forecast hour. Week 4 task against the Week 5 gate; the dashed line is the pass mark.',
@@ -162,10 +201,10 @@ export const findings = {
   trap: {
     title: 'The metric that scored an untrained model at 0.956',
     paragraphs: [
-      'The planned interpretability test was within-node r: for each node, correlate the attention on its incoming edges with their travel times. Before reporting it, the metric was run on a GATv2 with random, untrained weights. It scored 0.956.',
-      'The cause is structural. Edges arriving at a node differ mainly by hop count — one, two or three reaches upstream — and both reach length, a legal model input, and travel time, the answer key, grow with hop count. Within a node they correlate at +0.97 to +0.99. Any function of edge length passes.',
-      'Reporting 0.956 would have been a false headline. The metric was replaced by a hop-stratified version that compares an edge only with others of the same hop count, scored against a permutation null that shuffles within the same groups. The evaluator now carries 33 passing tests, including this case.',
-      'On the trained model the honest number is {r}: chance. The sign agrees in only {signs} basins, the four significant basins split in both directions, and it does not beat the reach-length baseline of {confound}.',
+      'The planned interpretability test was within-node r: for each node, correlate the attention on its incoming edges with their travel times. Before reporting it, the metric was run on a GATv2 with random, untrained weights. It scored {untrained}.',
+      'The cause is structural. Edges arriving at a node differ mainly by hop count — one, two or three reaches upstream — and both reach length, a legal model input, and travel time, the answer key, grow with hop count. Within a node they correlate at {confRange}. Any function of edge length passes.',
+      'Reporting {untrained} would have been a false headline. The metric was replaced by a hop-stratified version that compares an edge only with others of the same hop count, scored against a permutation null that shuffles within the same groups. The evaluator now carries {tests} passing tests, including this case.',
+      'On the trained model the honest number is {r} ({rCi}): chance. On routing edges alone it is {rRouting}, the wrong sign. The sign agrees in only {signs} basins, and reach length alone scores {confound} — higher than the learned attention, by {gap} ({gapCi}). Three seeds agree on their attention at only {seed}, so no single attention map can be read as the model’s structure.',
     ],
     pendingParagraph:
       'The trained model’s hop-stratified number is pending until the GAT run completes. Whatever it turns out to be, it will be reported against the permutation null and the reach-length baseline, not against zero.',
@@ -176,8 +215,8 @@ export const findings = {
   learned: {
     title: 'What attention learned instead',
     paragraphs: [
-      'At every confluence examined, the model put about a quarter of the weight on the main stem and almost none on the tributary, even where the two take nearly the same time to arrive. Against quantities the model can see, attention tracks upstream contributing area at {area} and upstream mean discharge at {q}, with the same sign in all 8 basins. It learned how much water a neighbour sends, not when that water arrives.',
-      'That is hydrologically sensible, and probably why the GAT beats the GCN: a degree-normalised average cannot weight a large main stem over a small tributary. It is not the claim the project set out to make. The next experiment moves the question to the temporal axis, where lag would have to appear if it appears at all.',
+      'At every confluence examined, the model put 0.25 to 0.30 of the weight on the main stem and 0.00 to 0.05 on the tributary, even where the two take nearly the same time to arrive. Against quantities the model can see, attention tracks upstream contributing area at {area} and upstream mean discharge at {q}, with the same sign in all 8 basins. It learned how much water a neighbour sends, not when that water arrives.',
+      'That may be why the GAT beats the GCN — a degree-normalised average cannot weight a large main stem over a small tributary — but that link has not been tested directly. It is not the claim the project set out to make. The next experiment moves the question to the temporal axis, where lag would have to appear if it appears at all.',
     ],
     pending:
       'What attention tracks instead of travel time can only be measured once a trained GAT exists. The comparison will use the same five properties of the upstream neighbour shown below, all of them quantities the model can see.',
@@ -192,16 +231,29 @@ export const resultsCopy = {
   rolloutCaption:
     'Error by forecast hour, log scale. At gauged nodes error grows with lead time, as it should. At ungauged nodes it is flat or falling: with no good starting value to decay from, the model regresses from upstream state at every step, so lead time is not the axis of difficulty there.',
   gatStatement:
-    'The GAT beats the GCN at ungauged nodes in {basinsWon} basins, by {imp}% pooled ({pNote}). With three seeds the held-out estimate ({held}%) is not significant. It is a modest, consistent gain rather than a step change, which is what was predicted in writing before training.',
-  basinsCaption:
-    'Ungauged-node RMSE by basin, mean over 12 forecast hours and 3 seeds (± seed s.d.). basin_07 and basin_08 were held out of training.',
+    'Pooled over all eight basins, the GAT’s ungauged error is {imp}% lower than the GCN’s, with a 95% interval of {ci}. The interval resamples basins and seeds rather than basin–seed pairs, which share both. {verdictSentence} Its 3-seed mean is lower in {basinsWon} basins, by under 1% in some and up to 18% in others. It is a modest gain rather than a step change, which is what was predicted in writing before training.',
+  gatHolds: 'It excludes zero: the direction holds, the size is uncertain.',
+  gatFails: 'It includes zero: on this analysis the gain is not established.',
+  supersededNote: 'Replaced analysis: {old}.',
+  heldHeading: 'Held-out basins, on their own',
+  heldStatement:
+    'The two basins held out of training are reported separately and never folded into the figure above. There the GAT’s error is {held}% lower, with a 95% interval of {ci}. {verdictSentence}',
+  heldHolds: 'The interval excludes zero.',
+  heldFails: 'With two basins and three seeds the interval includes zero, so transfer to unseen basins is not established.',
+  trainCaption: 'Training basins: ungauged-node RMSE, mean over 12 forecast hours and 3 seeds (± seed s.d.), and the lowest to highest per-seed change.',
+  heldCaption: 'Held-out basins, never trained on. Same measures.',
   ablationHeading: 'Ablations',
   ablationIntro: 'Each ablation changes one thing from the reference GAT and runs on the same 24 basin–seed pairs.',
   undirected:
-    'Making the graph undirected improved accuracy by {gain}% (p = {p}), more than the entire GAT-over-GCN gain. Water must flow downstream, and the physics loss still enforces that. Information need not: a downstream gauge constrains the section above it. The obvious mechanism — reverse edges helping where upstream coverage is poor — does not hold (r = {cov}), so the effect is recorded as unexplained.',
-  ablationCaption: 'GAT ungauged RMSE. Change vs reference is the mean per-pair relative change; p from a one-sample t-test on those changes.',
-  tableHeading: 'Every number, with its source',
-  tableIntro: 'Pending rows have not been measured. They are listed so their absence is visible.',
+    'Making the graph undirected changed error by {gain}% on average, better in only {betterIn} basin–seed pairs, with a 95% interval of {ci}. {verdictSentence} Replaced analysis: {old}. Water must flow downstream, and the physics loss still enforces that; information need not, since a downstream gauge constrains the section above it. The obvious mechanism — reverse edges helping where upstream coverage is poor — does not hold (r = {cov}), so the effect, whatever its size, is unexplained.',
+  undirectedHolds: 'The interval excludes zero.',
+  undirectedFails:
+    'The interval includes zero: the gain is driven by large improvements in a few basins and losses in others, and on the clustered analysis it is not established.',
+  ablationCaption:
+    'GAT ungauged RMSE. Change vs reference is the mean per-pair relative change, with a 95% interval from resampling basins and seeds; a dashed rule marks an interval that includes zero.',
+  tableHeading: 'Every number, with its status and source',
+  tableIntro:
+    'Verified: measured and rebuilt from the committed inputs in provenance/. Qualified: measured, with the limitation stated beside it. Pending: not yet measured, listed so its absence is visible. Recomputed values are calculated from the run outputs; read values are taken from RESULTS.md. Each row names the run and config hash behind it.',
 }
 
 export const rigor = {
@@ -213,19 +265,23 @@ export const rigor = {
     },
     {
       title: 'Seeded, config-logged runs',
-      body: 'Every run writes its full config and a hash into its results directory, with seeds 0, 1 and 2 throughout. A re-run of a headline table after the final code changes produced byte-identical metrics.',
+      body: 'Every run writes its full config and a hash into its results directory, with fixed seeds throughout. A re-run of the Week 4 headline table after the final code changes reproduced it to four decimal places.',
     },
     {
-      title: 'Permutation nulls',
-      body: 'Attention statistics are compared with 1,000 within-group shuffles, not with zero.',
+      title: 'Intervals that respect the design',
+      body: 'Comparisons are reported as effects with 95% intervals from a bootstrap that resamples basins and seeds, not basin–seed pairs, which share both. Where that changed a conclusion, the page reports the corrected one and names the test it replaced.',
     },
     {
-      title: 'Confound baselines',
-      body: 'Each attention result is reported beside what reach length alone would score, because length is a legal input that correlates with the answer.',
+      title: 'Permutation nulls and confound baselines',
+      body: 'Attention statistics are compared with within-group shuffles, not with zero, and always beside what reach length alone would score, because length is a legal input that correlates with the answer.',
     },
     {
       title: 'Tests on the evaluator',
-      body: '33 passing tests on the attention evaluator, including the hop-count confound that scored an untrained model at 0.956.',
+      body: 'The attention evaluator carries {tests} passing tests, including the hop-count confound that scored an untrained model at {untrained}.',
+    },
+    {
+      title: 'Published inputs',
+      body: 'The run outputs, configs, dataset tables and RESULTS.md behind every number are committed with this site. One command rebuilds the results file from them, and CI fails if it drifts.',
     },
     {
       title: 'Limits stated where they apply',
@@ -236,7 +292,9 @@ export const rigor = {
 
 export const footer = {
   pending: 'Every result on this page comes from synthetic basins. Results on real gauge data (H1–H4) are pending.',
-  provenance: 'Numbers are generated from the thesis repository by scripts/generate_data.py ({mode}; run {run}).',
+  provenance:
+    'Every number is rebuilt from the committed inputs in provenance/ with npm run regen-data. Thesis commit {commit}, dataset version {dataset}, main run {run} (config hash {hash}).',
+  provenanceLink: 'Inputs and run records',
   links: [
     { label: 'GitHub', href: 'https://github.com/pardhasaradhimenda26' },
   ],

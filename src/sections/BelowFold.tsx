@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useState } from 'react'
+import { Verdict } from './Verdict'
 import { Problem } from './Problem'
 import { Approach } from './Approach'
 import { Attention } from './Attention'
@@ -13,7 +14,7 @@ import { Footer } from './Footer'
   slot inside transitions, so neither rendering nor the DOM commit becomes a
   long task while the hero comes up. A #hash link mounts everything at once.
 */
-const SECTIONS = [Problem, Approach, Attention, Dataset, Findings, Results, Rigor, Footer]
+const SECTIONS = [Verdict, Problem, Approach, Attention, Dataset, Findings, Results, Rigor, Footer]
 
 type IdleWindow = Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void }
 

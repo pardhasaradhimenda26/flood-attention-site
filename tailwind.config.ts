@@ -86,6 +86,8 @@ export default {
       },
       minHeight: {
         hero: '40rem',
+        // a full screen, but never less than the hero's content needs
+        heroFit: 'max(100svh, 40rem)',
       },
       minWidth: {
         'figure-sm': '40rem',

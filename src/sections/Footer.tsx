@@ -5,7 +5,7 @@ import { WaterMark } from '../components/SectionHead'
 
 export function Footer() {
   const s = stationOf('footer')
-  const run = provenance.runs[0] ?? 'none'
+  const main = provenance.runs.find((r) => r.role === 'main')
   return (
     <footer id="footer" className="ground-abyss relative" aria-labelledby="footer-h">
       <div className="mx-auto max-w-figure px-gutter py-16 sm:px-8 lg:ml-rail lg:pl-10 lg:pr-12 xl:mx-auto">
@@ -43,7 +43,17 @@ export function Footer() {
                 </li>
               ))}
             </ul>
-            <p className="num mt-8 text-micro text-foam-soft">{tpl(footer.provenance, { mode: provenance.mode, run })}</p>
+            <p className="mt-8 max-w-narrow text-micro text-foam-soft">
+              {tpl(footer.provenance, {
+                commit: provenance.thesisCommit?.slice(0, 7) ?? 'unknown',
+                dataset: provenance.datasetVersion ?? 'unknown',
+                run: main?.id ?? 'none',
+                hash: main?.configHash ?? '—',
+              })}{' '}
+              <a href={`${site.repo}/tree/main/provenance`} className="text-foam" rel="noreferrer">
+                {footer.provenanceLink}
+              </a>
+            </p>
           </div>
         </div>
       </div>

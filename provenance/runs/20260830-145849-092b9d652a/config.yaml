@@ -1,0 +1,77 @@
+experiment: week4_baselines
+data:
+  dir: flood_routing_dataset
+  train_basins:
+  - basin_01
+  - basin_02
+  held_out_basin: basin_03
+windows:
+  input_steps: 24
+  rollout_steps: 12
+  stride: 6
+split:
+  train_fraction: 0.7
+  val_fraction: 0.1
+  test_fraction: 0.2
+normalisation:
+  method: zscore
+  fit_on: train_basins_only
+  stats:
+    precipitation_mm:
+      mean: 0.57706
+      std: 1.84936
+    lateral_inflow_m3s:
+      mean: 1.4353
+      std: 3.07996
+    discharge_m3s:
+      mean: 6.72669
+      std: 14.99764
+    water_depth_m:
+      mean: 0.27129
+      std: 0.24153
+  static_stats:
+    elevation_m:
+      mean: 449.65231
+      std: 246.96121
+    channel_slope:
+      mean: 0.00749
+      std: 0.00444
+    channel_width_m:
+      mean: 19.765
+      std: 10.52717
+    manning_n:
+      mean: 0.04047
+      std: 0.00533
+    local_area_km2:
+      mean: 11.11481
+      std: 5.7012
+    drainage_area_km2:
+      mean: 54.30585
+      std: 49.65092
+seeds:
+- 0
+- 1
+- 2
+model:
+  hidden_dim: 64
+  n_layers: 3
+  dropout: 0.0
+training:
+  epochs: 40
+  batch_size: 32
+  learning_rate: 0.001
+  optimizer: adam
+  weight_decay: 0.0
+  grad_clip: 1.0
+  early_stopping_patience: 8
+loss:
+  lambda_data: 1.0
+  lambda_physics: 0.05
+  q_scale: 6.72669
+  continuity_floor_fraction: 0.033
+models:
+- persistence
+- mlp
+- gcn
+evaluation:
+  naive_crosscorr_reference_r: 0.52

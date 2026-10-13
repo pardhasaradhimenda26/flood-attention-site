@@ -1,18 +1,22 @@
-import { ablations, basinComparison } from '../data/results'
+import { ablations, basinComparison, type BasinComparison } from '../data/results'
 import { resultsCopy, tpl } from '../data/content'
-import { metric, mv } from '../lib/metrics'
-import { fmt } from '../lib/format'
+import { ciText, excludesZero, intervalOf, metric, mv } from '../lib/metrics'
+import { fmt, minus } from '../lib/format'
 import { Section } from '../components/Section'
 import { SectionHead } from '../components/SectionHead'
 import { RolloutChart } from '../components/RolloutChart'
 import { MetricTable } from '../components/MetricTable'
+import { StatusFigure } from '../components/StatusFigure'
 
-function BasinTable() {
-  if (!basinComparison) return null
+type Row = NonNullable<BasinComparison>[number]
+
+/* One table per split: held-out basins are never listed among the training basins. */
+function BasinTable({ rows, caption }: { rows: Row[]; caption: string }) {
+  if (!rows.length) return null
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-figure-sm text-small">
-        <caption className="pb-3 text-left text-small text-ink-soft">{resultsCopy.basinsCaption}</caption>
+        <caption className="pb-3 text-left text-small text-ink-soft">{caption}</caption>
         <thead>
           <tr className="border-b-hair border-ink text-left text-micro text-ink-soft">
             <th scope="col" className="py-1.5 pr-4 font-normal">Basin</th>
@@ -20,25 +24,26 @@ function BasinTable() {
             <th scope="col" className="py-1.5 pr-4 text-right font-normal">MLP</th>
             <th scope="col" className="py-1.5 pr-4 text-right font-normal">GCN</th>
             <th scope="col" className="py-1.5 pr-4 text-right font-normal">GAT</th>
-            <th scope="col" className="py-1.5 text-right font-normal">GAT vs GCN</th>
+            <th scope="col" className="py-1.5 pr-4 text-right font-normal">GAT vs GCN</th>
+            <th scope="col" className="py-1.5 text-right font-normal">Per-seed range</th>
           </tr>
         </thead>
         <tbody>
-          {basinComparison.map((b) => (
+          {rows.map((b) => (
             <tr key={b.basin} className="border-b-hair border-paper-line">
-              <th scope="row" className="num py-1.5 pr-4 text-left font-normal">
-                {b.basin}
-                {b.split === 'held_out' && <span className="ml-2 font-sans text-micro text-ink-soft">held out</span>}
-              </th>
-              <td className="num py-1.5 pr-4 text-right text-ink-soft">{fmt(b.persistence, 3)}</td>
-              <td className="num py-1.5 pr-4 text-right text-ink-soft">{fmt(b.mlp, 3)}</td>
+              <th scope="row" className="num py-1.5 pr-4 text-left font-normal">{b.basin}</th>
+              <td className="num py-1.5 pr-4 text-right text-ink-soft">{b.persistence == null ? '—' : fmt(b.persistence, 3)}</td>
+              <td className="num py-1.5 pr-4 text-right text-ink-soft">{b.mlp == null ? '—' : fmt(b.mlp, 3)}</td>
               <td className="num py-1.5 pr-4 text-right">
                 {fmt(b.gcn, 3)} <span className="text-micro text-ink-soft">± {fmt(b.gcnSd, 3)}</span>
               </td>
               <td className="num py-1.5 pr-4 text-right font-medium">
                 {fmt(b.gat, 3)} <span className="text-micro font-normal text-ink-soft">± {fmt(b.gatSd, 3)}</span>
               </td>
-              <td className="num py-1.5 text-right">{fmt(b.gatVsGcnPct, 2, true)}%</td>
+              <td className="num py-1.5 pr-4 text-right">{fmt(b.gatVsGcnPct, 2, true)}%</td>
+              <td className="num py-1.5 text-right text-ink-soft">
+                {fmt(b.seedRangePct[0], 1, true)} to {fmt(b.seedRangePct[1], 1, true)}%
+              </td>
             </tr>
           ))}
         </tbody>
@@ -49,7 +54,7 @@ function BasinTable() {
 
 function AblationTable() {
   if (!ablations) {
-    return <p className="pending-hatch p-4 text-small text-ink-soft">Ablations pending: results/ablations.csv not found.</p>
+    return <p className="pending-hatch p-4 text-small text-ink-soft">Ablations pending: no ablation runs in provenance/.</p>
   }
   return (
     <div className="overflow-x-auto">
@@ -61,23 +66,33 @@ function AblationTable() {
             <th scope="col" className="py-1.5 pr-4 font-normal">Configuration</th>
             <th scope="col" className="py-1.5 pr-4 text-right font-normal">Ungauged RMSE</th>
             <th scope="col" className="py-1.5 pr-4 text-right font-normal">vs reference</th>
-            <th scope="col" className="py-1.5 pr-4 text-right font-normal">p</th>
+            <th scope="col" className="py-1.5 pr-4 text-right font-normal">95% interval</th>
             <th scope="col" className="py-1.5 pr-4 text-right font-normal">Better in</th>
             <th scope="col" className="py-1.5 text-right font-normal">Attention r vs travel time</th>
           </tr>
         </thead>
         <tbody>
           {ablations.map((a) => {
-            const strong = a.name === 'undirected'
+            const holds = excludesZero(a.interval)
             return (
-              <tr key={a.name} className={`border-b-hair border-paper-line ${strong ? 'font-medium' : ''}`}>
+              <tr key={a.name} className="border-b-hair border-paper-line">
                 <th scope="row" className="py-1.5 pr-4 text-left font-normal">
-                  <span className={strong ? 'font-semibold' : ''}>{a.name}</span>
+                  {a.name}
+                  <span className="num block text-micro text-ink-soft">config {a.configHash ?? '—'}</span>
                 </th>
                 <td className="num py-1.5 pr-4 text-micro text-ink-soft">{a.detail}</td>
                 <td className="num py-1.5 pr-4 text-right">{fmt(a.rmse, 3)}</td>
                 <td className="num py-1.5 pr-4 text-right">{a.vsRefPct == null ? '—' : `${fmt(a.vsRefPct, 2, true)}%`}</td>
-                <td className="num py-1.5 pr-4 text-right">{a.p == null ? '—' : fmt(a.p, 3)}</td>
+                <td className="num py-1.5 pr-4 text-right">
+                  {a.interval ? (
+                    <span className={`border-b-2 border-ink pb-px ${holds ? 'border-solid' : 'border-dashed'}`}>
+                      {ciText(a.interval)}
+                      <span className="sr-only">{holds ? ', excludes zero' : ', includes zero'}</span>
+                    </span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
                 <td className="num py-1.5 pr-4 text-right">{a.betterIn ?? '—'}</td>
                 <td className="num py-1.5 text-right">{fmt(a.attnR, 3, true)}</td>
               </tr>
@@ -91,7 +106,13 @@ function AblationTable() {
 
 export function Results() {
   const gm = metric('gat_vs_gcn')
+  const hm = metric('gat_vs_gcn_held')
+  const um = metric('undirected_gain')
   const und = ablations?.find((a) => a.name === 'undirected')
+  const train = (basinComparison ?? []).filter((b) => b.split !== 'held_out')
+  const held = (basinComparison ?? []).filter((b) => b.split === 'held_out')
+  const gIv = intervalOf('gat_vs_gcn')
+  const hIv = intervalOf('gat_vs_gcn_held')
   return (
     <Section id="results" ground="paper">
       <SectionHead section="results" id="results-h">
@@ -104,29 +125,67 @@ export function Results() {
         <p className="mt-4 max-w-measure text-small text-ink-soft">{resultsCopy.rolloutCaption}</p>
       </div>
 
-      {gm && gm.status === 'verified' ? (
-        <p className="mt-14 max-w-measure border-l-2 border-ink pl-4 text-lead text-ink">
-          {tpl(resultsCopy.gatStatement, {
-            basinsWon: mv('gat_basins_won'),
-            imp: mv('gat_vs_gcn'),
-            pNote: gm.note ?? '',
-            held: mv('gat_vs_gcn_held'),
-          })}
-        </p>
+      {gm && gm.status !== 'pending' ? (
+        <div className="mt-14 grid gap-x-12 gap-y-6 lg:grid-cols-12">
+          <StatusFigure id="gat_vs_gcn" size="compact" className="lg:col-span-4" caption="GAT over GCN, all eight basins pooled" />
+          <div className="max-w-measure space-y-3 lg:col-span-8">
+            <p className="text-lead text-ink">
+              {tpl(resultsCopy.gatStatement, {
+                imp: mv('gat_vs_gcn'),
+                ci: ciText(gIv),
+                verdictSentence: excludesZero(gIv) ? resultsCopy.gatHolds : resultsCopy.gatFails,
+                basinsWon: mv('gat_basins_won'),
+              })}
+            </p>
+            {gm.supersedes && <p className="text-small text-ink-soft">{tpl(resultsCopy.supersededNote, { old: minus(gm.supersedes) })}</p>}
+          </div>
+        </div>
       ) : (
         <p className="pending-hatch mt-14 max-w-measure p-4 text-lead text-ink-soft">GAT versus GCN: pending. Training has not finished.</p>
       )}
 
       <div className="mt-12">
-        <BasinTable />
+        <BasinTable rows={train} caption={resultsCopy.trainCaption} />
       </div>
+
+      {hm && hm.status !== 'pending' && (
+        <div className="mt-16 border-t-hair border-ink pt-6">
+          <h3 className="text-h3">{resultsCopy.heldHeading}</h3>
+          <div className="mt-6 grid gap-x-12 gap-y-6 lg:grid-cols-12">
+            <StatusFigure id="gat_vs_gcn_held" size="compact" className="lg:col-span-4" caption="GAT over GCN, held-out basins only" />
+            <div className="max-w-measure space-y-3 lg:col-span-8">
+              <p className="text-body text-ink">
+                {tpl(resultsCopy.heldStatement, {
+                  held: mv('gat_vs_gcn_held'),
+                  ci: ciText(hIv),
+                  verdictSentence: excludesZero(hIv) ? resultsCopy.heldHolds : resultsCopy.heldFails,
+                })}
+              </p>
+              {hm.supersedes && <p className="text-small text-ink-soft">{tpl(resultsCopy.supersededNote, { old: minus(hm.supersedes) })}</p>}
+            </div>
+          </div>
+          <div className="mt-8">
+            <BasinTable rows={held} caption={resultsCopy.heldCaption} />
+          </div>
+        </div>
+      )}
 
       <h3 className="mt-20 text-h3">{resultsCopy.ablationHeading}</h3>
       <p className="mt-3 max-w-measure text-body text-ink-soft">{resultsCopy.ablationIntro}</p>
-      {und && und.p != null && (
-        <p className="mt-6 max-w-measure text-body">
-          {tpl(resultsCopy.undirected, { gain: fmt(und.vsRefPct ?? 0, 1), p: fmt(und.p, 3), cov: mv('undir_coverage_r') })}
-        </p>
+      {um && und && um.status !== 'pending' && (
+        <div className="mt-6 grid gap-x-12 gap-y-6 lg:grid-cols-12">
+          <StatusFigure id="undirected_gain" size="compact" className="lg:col-span-4" caption="Undirected graph vs the directed reference" />
+          <p className="max-w-measure text-body lg:col-span-8">
+            {tpl(resultsCopy.undirected, {
+              gain: fmt(und.vsRefPct ?? 0, 1, true),
+              betterIn: und.betterIn ?? '—',
+              ci: ciText(und.interval),
+              verdictSentence: excludesZero(und.interval) ? resultsCopy.undirectedHolds : resultsCopy.undirectedFails,
+              old: minus(um.supersedes ?? ''),
+              cov: mv('undir_coverage_r'),
+            })}
+          </p>
+        </div>
       )}
       <div className="mt-8">
         <AblationTable />

@@ -1,0 +1,241 @@
+{
+  "about": "Inputs behind src/data/results.ts. Copied from the thesis repository by scripts/generate_data.py; reproduce results.ts with `npm run regen-data`.",
+  "thesisCommit": "eb484da81eda9c3cecb064c2cbcc06b9fae5e701",
+  "dataset": {
+    "version": "864b79098c",
+    "generator": "data/generate_flood_dataset.py",
+    "generatorSha256": "70345598725a691d7668908677e324258a007358fbb50f593e918da9280a4c17",
+    "files": {
+      "nodes.csv": "d66070971d7bb72c705acab820e176c91136849e9321fd5f6f175a12ba2a41f1",
+      "edges.csv": "e508a4fe957e2acc5214b638efe21f97d62ad7b22fa7413ee4bf37028e3bb311",
+      "basins.csv": "10de25a8ca0d4f9ad25cb56743696befa2b25ca282795fac1ccbd1403cc58b18",
+      "timeseries.csv": "87f6c9c4ecb8ad86ee6ce0ecf775bc9942ecb10082a8811d88877b5deaabaa27"
+    },
+    "note": "timeseries.csv is not committed (54 MB); its hash pins the version."
+  },
+  "runs": [
+    {
+      "id": "20260830-192452-1440f965dd-main",
+      "role": "main",
+      "configHash": "1440f965dd",
+      "configPath": "configs/week5.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "persistence",
+        "mlp",
+        "gcn",
+        "gat"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260831-192438-4e2a31e0b3-abl_time2vec",
+      "role": "ablation",
+      "configHash": "4e2a31e0b3",
+      "configPath": "configs/week5_abl_time2vec.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "gat"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260831-192438-52c5547b20-abl_heads4",
+      "role": "ablation",
+      "configHash": "52c5547b20",
+      "configPath": "configs/week5_abl_heads4.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "gat"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260831-192438-72dd64c403-abl_noedge",
+      "role": "ablation",
+      "configHash": "72dd64c403",
+      "configPath": "configs/week5_abl_noedge.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "gat"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260831-192438-b9b97f5d57-abl_undirected",
+      "role": "ablation",
+      "configHash": "b9b97f5d57",
+      "configPath": "configs/week5_abl_undirected.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "gat"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260831-192438-d7e2f0bbe2-abl_heads8",
+      "role": "ablation",
+      "configHash": "d7e2f0bbe2",
+      "configPath": "configs/week5_abl_heads8.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "gat"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260831-192438-fb58ec3500-abl_heads2",
+      "role": "ablation",
+      "configHash": "fb58ec3500",
+      "configPath": "configs/week5_abl_heads2.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "gat"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260830-145849-092b9d652a",
+      "role": "week4",
+      "configHash": "092b9d652a",
+      "configPath": "configs/week4.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "persistence",
+        "mlp",
+        "gcn"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260830-150156-cd34e687df-robustness",
+      "role": "week4",
+      "configHash": "cd34e687df",
+      "configPath": "configs/week4_8seed_robustness.yaml",
+      "seeds": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "models": [
+        "persistence",
+        "mlp",
+        "gcn"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20260830-150740-092b9d652a-repro",
+      "role": "week4",
+      "configHash": "092b9d652a",
+      "configPath": "configs/week4.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "persistence",
+        "mlp",
+        "gcn"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
+    }
+  ],
+  "files": {
+    "RESULTS.md": "23d80ba968cc40347e75a7227538dc18a1c96a211aff603225f8472b5e3004d8",
+    "ablations.csv": "2c0f7c445177e83bdd8f639d32fda559256fdfd790b6fc45bccde9ede4bd343e",
+    "dataset/basins.csv": "b11242be05980f140fc251b9143a0da25456d936965a5dfa5df9954f75b28206",
+    "dataset/edges.csv": "f480550fafc1f2df8b963f63cd73134dd9fd3acb8a8e2c5ef07c39bc2ad2f45d",
+    "dataset/nodes.csv": "6dab4501b03a2d7d948c694a59e6ed46c324ad43b04549e2c79940539e4836e4",
+    "runs/20260830-145849-092b9d652a/config.yaml": "1b6dbf5fd38b24e41336a7c0ba027bd0a891ac544415d56e076dbfffd808dc38",
+    "runs/20260830-145849-092b9d652a/metrics.csv": "ca7bc9fc7651319cb9b1d0d57eeec4a80a42c1676694d41477668c4f86a2cda6",
+    "runs/20260830-145849-092b9d652a/metrics_per_seed.csv": "30387357f150bff3f227929f1d969efdd7c0ebd186b63f68de3147c5df093c56",
+    "runs/20260830-145849-092b9d652a/run.json": "b5e3f750ea27defa4cc732d84e6a82ea96e68181a4e5813183e2a36e78362f65",
+    "runs/20260830-150156-cd34e687df-robustness/config.yaml": "233d667a635fe37d41553a19d49ed74a901321ba3534a97d6c4df2085062aead",
+    "runs/20260830-150156-cd34e687df-robustness/metrics.csv": "54cdc2caa9a21dfa4dda336568b475bfb59b82db0af15c995cf2d1ca5ac99e37",
+    "runs/20260830-150156-cd34e687df-robustness/metrics_per_seed.csv": "02cf0bda43db52454af863f4dc1c4bceb393992b72e69426cc8d986f68307641",
+    "runs/20260830-150156-cd34e687df-robustness/run.json": "9474119514fac4488703f66b8606a218314c3cfe91d97f869c42341ffef57691",
+    "runs/20260830-150740-092b9d652a-repro/config.yaml": "1b6dbf5fd38b24e41336a7c0ba027bd0a891ac544415d56e076dbfffd808dc38",
+    "runs/20260830-150740-092b9d652a-repro/metrics.csv": "ca7bc9fc7651319cb9b1d0d57eeec4a80a42c1676694d41477668c4f86a2cda6",
+    "runs/20260830-150740-092b9d652a-repro/metrics_per_seed.csv": "30387357f150bff3f227929f1d969efdd7c0ebd186b63f68de3147c5df093c56",
+    "runs/20260830-150740-092b9d652a-repro/run.json": "5db0479b23eabf422d333a50cca56611ad5b8753314511e9a923c9d0523a0d15",
+    "runs/20260830-192452-1440f965dd-main/attention_scores.csv": "7016e5562f95e4f33a89d38f173ba71d302d5c5f62a08f627aaf71f5cff467d8",
+    "runs/20260830-192452-1440f965dd-main/attention_seed_consistency.csv": "9b1334a36609e1366227658d2d9680fb5b49f631d788b50fcd084ad1f5537f84",
+    "runs/20260830-192452-1440f965dd-main/config.yaml": "deb3d41427b51082fdd6aa58018b44eb883d2d86ded1237e25e8990bc12bc8b2",
+    "runs/20260830-192452-1440f965dd-main/metrics.csv": "a597861b17d8676d8632bb52c5b0ae805bd35c8986f90d68c667d7cec7e39ae8",
+    "runs/20260830-192452-1440f965dd-main/metrics_per_seed.csv": "2a0f8c09c4ad57ac5fadd985556c0fa5e3157dadde45958924fa6eefd7d3403d",
+    "runs/20260830-192452-1440f965dd-main/run.json": "9b974f4b704f316c46e2848909695213fb0ca24409035c4c43407e305b1e2df3",
+    "runs/20260831-192438-4e2a31e0b3-abl_time2vec/config.yaml": "b23adfe4336a1c9d97394347f77b6c61ae24aed05ccf1b68805138760f648d3b",
+    "runs/20260831-192438-4e2a31e0b3-abl_time2vec/metrics.csv": "1c9b78724ac580825a0631a19f3ccc489ff378e7671ddad74de2520be9012c4e",
+    "runs/20260831-192438-4e2a31e0b3-abl_time2vec/metrics_per_seed.csv": "e9f69c2c655466575bfb96fe9899bc5d3dc96eddbb0e2bc541169176fa69fcb4",
+    "runs/20260831-192438-4e2a31e0b3-abl_time2vec/run.json": "f397816efb129a4cdd8bfb5b47ddc57c30575eb433b0b0f43a26c5849aa87e7e",
+    "runs/20260831-192438-52c5547b20-abl_heads4/config.yaml": "04f1d3eb0c023a450b66a95b847635da8beb51e57b6667e05230b20064965fca",
+    "runs/20260831-192438-52c5547b20-abl_heads4/metrics.csv": "cd11af35aa7389c049680bff7e76c9629e74efdac6d59eb23468eb5f44a1b958",
+    "runs/20260831-192438-52c5547b20-abl_heads4/metrics_per_seed.csv": "4eb9c14aecc147e43cba0df05a264787274799fe71d1288aa53ceb880d0ea045",
+    "runs/20260831-192438-52c5547b20-abl_heads4/run.json": "acce2984111a89b7d18417b0d3d62be937f0f8841fe4b81bf0f162be204b2602",
+    "runs/20260831-192438-72dd64c403-abl_noedge/config.yaml": "404f91810edce25b33411790600cc1c2da5a8ffdeb9513336693688ccfeff29b",
+    "runs/20260831-192438-72dd64c403-abl_noedge/metrics.csv": "562252fa22924a9eede13b10a10e5b7d955d990b80e3f4f1fc95814ff76f1c25",
+    "runs/20260831-192438-72dd64c403-abl_noedge/metrics_per_seed.csv": "2034ea352449afdd577de3540d477d67150f862a5945c707a9b11f39180210f4",
+    "runs/20260831-192438-72dd64c403-abl_noedge/run.json": "9f236134db7e74536d1e244a053ddeb26efd88a437c7bd1a1bb12075de8c7407",
+    "runs/20260831-192438-b9b97f5d57-abl_undirected/config.yaml": "b7bd17d6aa6301c45ee6edbc10b453fec6aad666a475db8989862127a0deb171",
+    "runs/20260831-192438-b9b97f5d57-abl_undirected/metrics.csv": "8fe1494edf42e45686ced7d29884050b7afcda11baf05c831881fb70148fd442",
+    "runs/20260831-192438-b9b97f5d57-abl_undirected/metrics_per_seed.csv": "78a1306533f8a9f1a5d50ad8392b5c51d5d8b98e6cddfbb92f704a20c6b62f53",
+    "runs/20260831-192438-b9b97f5d57-abl_undirected/run.json": "e398028425b88561c83a0a939324b460730fbe3bea652b9a79d46bad2cf51c2f",
+    "runs/20260831-192438-d7e2f0bbe2-abl_heads8/config.yaml": "8514d0251ce0e6e4e660a4f4c2b13275b93128adcb00a7ea1ea9019c83ceefdb",
+    "runs/20260831-192438-d7e2f0bbe2-abl_heads8/metrics.csv": "469550ab457ffc8d25b376603eaeadf4d2cc1bf434cf133c4ab28ef19cd2d34f",
+    "runs/20260831-192438-d7e2f0bbe2-abl_heads8/metrics_per_seed.csv": "5160415308b54511ed3bf9c3074b9c254aa14fb9f11e074d174a04d0398f6c0a",
+    "runs/20260831-192438-d7e2f0bbe2-abl_heads8/run.json": "52bb40de90b4a68b3f439c65b305413535a95488b96acd905dc3eb9b84fbe1c2",
+    "runs/20260831-192438-fb58ec3500-abl_heads2/config.yaml": "bd252b250588f8eb3586e015987e5adbe62c3e730eb9b7f30f3f2f6c5f74be3c",
+    "runs/20260831-192438-fb58ec3500-abl_heads2/metrics.csv": "352bd132c00ab0a7084564967b0fbf7086e57fbbdf07e3d389772f97058093e0",
+    "runs/20260831-192438-fb58ec3500-abl_heads2/metrics_per_seed.csv": "bf19476246614f687df31c59a3fb42b2485d2f65c5261cae05632deae3664bf0",
+    "runs/20260831-192438-fb58ec3500-abl_heads2/run.json": "d85513dd71435000e127da7f61e5614b3f939592887c1cda57a7fdd4809530f3"
+  }
+}

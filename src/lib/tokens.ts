@@ -16,7 +16,7 @@ const FALLBACK: Record<string, string> = {
   w4: '#2c6a84',
   w5: '#1a4a5f',
   signal: '#c2185b',
-  'signal-lift': '#ec5c9b',
+  'signal-lift': '#f06aa5',
 }
 
 const cache = new Map<string, string>()

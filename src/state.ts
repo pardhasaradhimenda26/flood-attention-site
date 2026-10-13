@@ -71,7 +71,17 @@ export const useSite = create<SiteState>((set, get) => ({
 }))
 
 if (typeof window !== 'undefined') {
+  // Mirror the switch onto <html> so CSS can honour ?motion=reduce as well
+  // as the media query (index.css).
+  const mark = (v: boolean) => {
+    if (v) document.documentElement.dataset.motion = 'reduce'
+    else delete document.documentElement.dataset.motion
+  }
+  mark(prefersReduced)
   window
     .matchMedia('(prefers-reduced-motion: reduce)')
-    .addEventListener('change', (e) => useSite.getState().setReducedMotion(e.matches))
+    .addEventListener('change', (e) => {
+      useSite.getState().setReducedMotion(e.matches)
+      mark(e.matches)
+    })
 }

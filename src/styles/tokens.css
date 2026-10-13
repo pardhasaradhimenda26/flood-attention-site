@@ -31,7 +31,7 @@
   --w5: #1a4a5f;
 
   --signal: #c2185b;
-  --signal-lift: #ec5c9b;
+  --signal-lift: #f06aa5;
 
   --hatch: repeating-linear-gradient(
     -45deg,
@@ -47,6 +47,7 @@
   --focus: #f4fafb;
   --focus-halo: var(--abyss);
   --signal-on: var(--signal-lift);
+  --hatch: repeating-linear-gradient(-45deg, transparent 0 5px, rgb(220 231 234 / 0.2) 5px 6px);
   background-color: var(--abyss);
   color: var(--foam);
 }
@@ -58,6 +59,7 @@
   --focus: var(--ink);
   --focus-halo: var(--paper);
   --signal-on: var(--signal);
+  --hatch: repeating-linear-gradient(-45deg, transparent 0 5px, rgb(63 89 100 / 0.16) 5px 6px);
   background-color: var(--paper);
   color: var(--ink);
 }

@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run",
+    "regen-data": "python3 scripts/generate_data.py --results-only || python scripts/generate_data.py --results-only",
+    "check-data": "npm run regen-data && git diff --exit-code -- src/data/results.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -24,6 +27,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.1.0",
     "@types/d3-scale": "^4.0.9",
     "@types/d3-shape": "^3.2.0",
     "@types/react": "^18.3.31",
@@ -35,10 +40,12 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "globals": "^15.11.0",
+    "jsdom": "^25.0.1",
     "postcss": "^8.5.29",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.11.0",
-    "vite": "^5.4.10"
+    "vite": "^5.4.10",
+    "vitest": "^2.1.9"
   }
 }

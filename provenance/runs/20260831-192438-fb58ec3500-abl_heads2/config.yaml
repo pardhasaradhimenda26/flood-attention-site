@@ -1,0 +1,95 @@
+experiment: week5_ablation_heads2
+data:
+  dir: flood_routing_dataset
+  train_basins:
+  - basin_01
+  - basin_02
+  - basin_03
+  - basin_04
+  - basin_05
+  - basin_06
+  held_out_basins:
+  - basin_07
+  - basin_08
+windows:
+  input_steps: 24
+  rollout_steps: 12
+  stride: 6
+split:
+  train_fraction: 0.7
+  val_fraction: 0.1
+  test_fraction: 0.2
+normalisation:
+  method: zscore
+  fit_on: train_basins_only
+  stats:
+    precipitation_mm:
+      mean: 0.31631
+      std: 1.13916
+    lateral_inflow_m3s:
+      mean: 1.19421
+      std: 1.92915
+    discharge_m3s:
+      mean: 11.39818
+      std: 16.20428
+    water_depth_m:
+      mean: 0.3193
+      std: 0.23504
+  edge_stats:
+    reach_length_m:
+      mean: 63530.55836
+      std: 29330.34482
+    elevation_drop_m:
+      mean: 73.80663
+      std: 89.58689
+  static_stats:
+    elevation_m:
+      mean: 373.43483
+      std: 308.0564
+    channel_slope:
+      mean: 0.00632
+      std: 0.00532
+    channel_width_m:
+      mean: 28.8081
+      std: 19.75957
+    manning_n:
+      mean: 0.03594
+      std: 0.00948
+    local_area_km2:
+      mean: 14.23983
+      std: 10.04337
+    drainage_area_km2:
+      mean: 134.61586
+      std: 166.9802
+seeds:
+- 0
+- 1
+- 2
+model:
+  hidden_dim: 64
+  n_layers: 3
+  dropout: 0.0
+  heads: 2
+  edge_dim: 2
+  use_time2vec: false
+  time2vec_dim: 8
+  undirected: false
+training:
+  epochs: 40
+  batch_size: 32
+  learning_rate: 0.001
+  optimizer: adam
+  weight_decay: 0.0
+  grad_clip: 1.0
+  early_stopping_patience: 8
+loss:
+  lambda_data: 1.0
+  lambda_physics: 0.05
+  q_scale: 11.39818
+  continuity_floor_fraction: 0.033
+models:
+- gat
+evaluation:
+  naive_crosscorr_reference_r_routing: 0.698
+  naive_crosscorr_reference_r_all_edges: 0.769
+  permutation_draws: 1000

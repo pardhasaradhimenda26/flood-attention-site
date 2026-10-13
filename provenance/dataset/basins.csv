@@ -1,0 +1,9 @@
+basin_id,character,reference_celerity_ms,manning_n,runoff_coefficient,n_nodes,n_edges,n_routing_edges,n_tributaries,n_gauged
+basin_01,steep_upland,1.8,0.045,0.55,28,78,27,2,4
+basin_02,moderate_transitional,1.35,0.035,0.42,29,81,28,2,4
+basin_03,flat_alluvial,0.85,0.028,0.34,29,81,28,2,4
+basin_04,steep_confined,1.95,0.052,0.62,21,57,20,1,4
+basin_05,rolling_mixed,1.5,0.038,0.47,34,96,33,3,4
+basin_06,lowland_braided,0.7,0.024,0.28,33,93,32,2,4
+basin_07,montane_headwater,1.65,0.058,0.68,29,81,28,3,4
+basin_08,coastal_plain,1.0,0.021,0.31,30,84,29,2,4
