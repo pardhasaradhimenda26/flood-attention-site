@@ -123,6 +123,23 @@
   }
 }
 
+/* Touch: every control is at least 44px tall, without changing the desktop layout. */
+@media (pointer: coarse) {
+  button {
+    min-height: 44px;
+  }
+  summary {
+    padding-block: 12px;
+  }
+  .range {
+    height: 44px;
+  }
+  footer a {
+    display: inline-block;
+    padding-block: 14px;
+  }
+}
+
 /*
   Reduced motion, site-wide: animations stop, smooth scrolling stops, and any
   transition that moves or resizes something drops to an opacity change.
