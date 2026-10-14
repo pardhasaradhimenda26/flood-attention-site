@@ -231,6 +231,7 @@ export function StormTimeline({ drive = false }: { drive?: boolean }) {
         ) : null}
       </div>
       {reduced && <p className="mt-1 text-micro text-foam-soft">{hero.frozen}</p>}
+      <p className="mt-2 max-w-measure text-micro text-foam-soft">{hero.scaleNote}</p>
       <p className="sr-only" aria-live="polite">
         {said}
       </p>

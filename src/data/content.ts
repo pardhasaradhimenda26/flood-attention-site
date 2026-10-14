@@ -29,6 +29,8 @@ export const hero = {
   fallbackLabel:
     'Plan view of synthetic basin 01: a main stem and two tributaries. A flood pulse released at the headwaters runs down each reach and reaches each cross-section after the summed travel time of the reaches above it. Four gauged cross-sections are marked.',
   timelineLabel: 'Storm hour',
+  scaleNote:
+    'In the 3D view the river is drawn wider and the water deeper than to scale, so the flood can be seen. The numbers on the gauge boards and in this chart are the dataset’s, unscaled.',
   replay: 'Replay the storm',
   frozen: 'Reduced motion: held at the hour the river carries the most water.',
   tableToggle: 'Read the storm as a table',
