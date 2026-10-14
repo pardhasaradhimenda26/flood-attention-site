@@ -32,7 +32,8 @@ import {
 const DASH = ['', '6 3', '2 3', '10 3 2 3']
 
 export function StormTimeline({ drive = false }: { drive?: boolean }) {
-  const [ref, width] = useMeasure<HTMLDivElement>(900)
+  // Start from the window's width so the first paint already picks the right layout.
+  const [ref, width] = useMeasure<HTMLDivElement>(typeof window === 'undefined' ? 900 : Math.min(1400, window.innerWidth - 32))
   const t = useSite((s) => s.heroTime)
   const playing = useSite((s) => s.heroPlaying)
   const settled = useSite((s) => s.heroSettled)
@@ -115,7 +116,7 @@ export function StormTimeline({ drive = false }: { drive?: boolean }) {
   for (let k = 1; k < gaugeEnds.length; k++) if (gaugeEnds[k].y - gaugeEnds[k - 1].y < 12) gaugeEnds[k].y = gaugeEnds[k - 1].y + 12
 
   return (
-    <div ref={ref} className="select-none">
+    <div ref={ref} className="min-w-0 select-none">
       <svg width={width} height={H} className="block" aria-hidden="true">
         {/* hairline graticule every 24 h */}
         {hours

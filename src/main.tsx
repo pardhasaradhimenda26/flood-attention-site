@@ -5,7 +5,9 @@ import App from './App'
 
 // A tab left open across a deploy asks for lazy chunks the new build no longer
 // has. Reload once to pick up the new build instead of leaving a section blank.
-window.addEventListener('vite:preloadError', (e) => {
+// (No preventDefault: that would resolve the import to undefined and crash the
+// lazy component before the reload lands.)
+window.addEventListener('vite:preloadError', () => {
   const key = 'reloaded-after-deploy'
   try {
     if (sessionStorage.getItem(key)) return
@@ -13,7 +15,6 @@ window.addEventListener('vite:preloadError', (e) => {
   } catch {
     return
   }
-  e.preventDefault()
   window.location.reload()
 })
 

@@ -52,7 +52,7 @@ export function Hero() {
       </div>
 
       <div className="pointer-events-none relative z-overlay flex flex-col lg:min-h-heroFit lg:justify-end lg:pl-rail">
-        <div className="pointer-events-auto px-gutter pb-8 pt-6 sm:px-8 lg:max-w-lede-wide lg:pb-10 lg:pl-6 lg:pt-24">
+        <div className="pointer-events-auto min-w-0 px-gutter pb-8 pt-6 sm:px-8 lg:max-w-lede-wide lg:pb-10 lg:pl-6 lg:pt-24">
           <h1 className="cut-condensed max-w-headline text-display tracking-display text-foam">
             <span className="block font-bold">{h1a}.</span>
             <span className="mt-2 block font-light text-foam">{h1b}</span>
@@ -64,7 +64,7 @@ export function Hero() {
             <span className="text-foam-soft"> — {site.degree}, {site.institution}</span>
           </p>
         </div>
-        <div className="pointer-events-auto min-h-timeline border-t-hair border-abyss-line bg-abyss px-gutter pb-5 pt-4 sm:px-8 lg:pl-6 lg:pr-8">
+        <div className="pointer-events-auto min-h-timeline min-w-0 border-t-hair border-abyss-line bg-abyss px-gutter pb-5 pt-4 sm:px-8 lg:pl-6 lg:pr-8">
           <Suspense fallback={null}>
             <HeroTimeline drive={gl === false} />
           </Suspense>
