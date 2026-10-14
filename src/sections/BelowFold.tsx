@@ -14,7 +14,9 @@ import { Footer } from './Footer'
   slot inside transitions, so neither rendering nor the DOM commit becomes a
   long task while the hero comes up. A #hash link mounts everything at once.
 */
-const SECTIONS = [Verdict, Problem, Approach, Attention, Dataset, Findings, Results, Rigor, Footer]
+// Act 2: Problem. Act 3: Approach (the river becomes a graph), Attention, Dataset.
+// Act 4: Verdict, Findings, Results. Then rigour and the footer.
+const SECTIONS = [Problem, Approach, Attention, Dataset, Verdict, Findings, Results, Rigor, Footer]
 
 type IdleWindow = Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void }
 

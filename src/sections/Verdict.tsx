@@ -3,6 +3,8 @@ import { Section } from '../components/Section'
 import { SectionHead } from '../components/SectionHead'
 import { StatusFigure, StatusLine } from '../components/StatusFigure'
 import { VerdictChart } from '../components/VerdictChart'
+import { ClaimBlock } from '../components/ClaimBlock'
+import { claims } from '../data/claims'
 
 /*
   The first thing below the hero. Both claims and their evidential status in
@@ -24,17 +26,18 @@ export function Verdict() {
       <div className="mt-14 grid gap-x-12 gap-y-16 lg:grid-cols-12">
         <article aria-labelledby="verdict-acc" className="min-w-0 border-t-2 border-ink pt-5 lg:col-span-5">
           <h3 id="verdict-acc" className="cut-semi text-h3 font-semibold">{acc.title}</h3>
-          <p className="mt-2 max-w-narrow text-small text-ink-soft">{acc.claim}</p>
+          <ClaimBlock claim={claims.accuracy} className="mt-4" />
           <StatusFigure id="gat_vs_gcn" size="figure" caption={acc.caption} className="mt-8" />
           <div className="mt-10 border-t-hair border-ink pt-4">
             <h4 className="text-small font-semibold text-ink">{acc.heldTitle}</h4>
+            <ClaimBlock claim={claims.heldOut} className="mt-3" />
             <StatusFigure id="gat_vs_gcn_held" size="compact" caption={acc.heldCaption} className="mt-3" />
           </div>
         </article>
 
         <article aria-labelledby="verdict-att" className="min-w-0 border-t-2 border-ink pt-5 lg:col-span-7">
           <h3 id="verdict-att" className="cut-semi text-h3 font-semibold">{att.title}</h3>
-          <p className="mt-2 max-w-narrow text-small text-ink-soft">{att.claim}</p>
+          <ClaimBlock claim={claims.physicsNull} className="mt-4" />
           <div className="mt-8 grid gap-x-8 gap-y-8 sm:grid-cols-2">
             {VERDICT_ROWS.map((r) => (
               <StatusFigure key={r.id} id={r.id} size="reading" caption={att.captions[r.id]} className="min-w-0" />
@@ -48,7 +51,7 @@ export function Verdict() {
         </article>
       </div>
 
-      <StatusLine id="real_gat_vs_gcn" label={verdict.pendingLabel} className="mt-14" />
+      <ClaimBlock claim={claims.realPending} className="mt-14" />
     </Section>
   )
 }

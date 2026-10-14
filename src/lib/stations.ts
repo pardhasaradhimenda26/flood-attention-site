@@ -20,11 +20,11 @@ export type SectionKey =
 
 const ORDER: [SectionKey, string, number][] = [
   ['top', 'Headwater', 0],
-  ['verdict', 'Verdict', 0.06],
-  ['problem', 'Problem', 0.12],
-  ['approach', 'Approach', 0.24],
-  ['attention', 'Attention', 0.35],
-  ['dataset', 'Dataset', 0.53],
+  ['problem', 'Problem', 0.1],
+  ['approach', 'Approach', 0.22],
+  ['attention', 'Attention', 0.34],
+  ['dataset', 'Dataset', 0.47],
+  ['verdict', 'Verdict', 0.59],
   ['findings', 'Findings', 0.7],
   ['results', 'Results', 0.82],
   ['rigor', 'Rigor', 0.94],

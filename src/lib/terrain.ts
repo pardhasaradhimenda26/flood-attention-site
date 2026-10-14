@@ -7,15 +7,49 @@ import { nodeById, routingEdges } from './graph'
 
   Height = channel bed elevation at the nearest point of the river network,
   plus valley walls rising with distance from the channel, plus seeded
-  low-frequency relief that is suppressed on the valley floor.
+  low-frequency relief that is suppressed on the valley floor. The channel is
+  carved in: a parabolic section whose half-width follows each cross-section's
+  surveyed channel width, BANK_H deep, set in a near-flat floodplain.
 */
 
-type Seg = { ax: number; az: number; bx: number; bz: number; ay: number; by: number }
+/** Depth of the carved channel below its banks (world units). */
+export const BANK_H = 0.09
+
+/** Channel half-width in world units from surveyed width in metres (drawn wider than scale, so it reads as water). */
+export function halfWidth(widthM: number): number {
+  return 0.16 + 0.0075 * widthM
+}
+
+type Seg = {
+  ax: number
+  az: number
+  bx: number
+  bz: number
+  ay: number
+  by: number
+  hwa: number
+  hwb: number
+  source: string
+  target: string
+}
 
 const segs: Seg[] = routingEdges.map((e) => {
-  const a = nodeById.get(e.source)!.pos
-  const b = nodeById.get(e.target)!.pos
-  return { ax: a[0], az: a[2], ay: a[1], bx: b[0], bz: b[2], by: b[1] }
+  const A = nodeById.get(e.source)!
+  const B = nodeById.get(e.target)!
+  const a = A.pos
+  const b = B.pos
+  return {
+    ax: a[0],
+    az: a[2],
+    ay: a[1],
+    bx: b[0],
+    bz: b[2],
+    by: b[1],
+    hwa: halfWidth(A.channelWidthM),
+    hwb: halfWidth(B.channelWidthM),
+    source: e.source,
+    target: e.target,
+  }
 })
 
 const xs = nodes.map((n) => n.pos[0])
@@ -57,15 +91,34 @@ function fbm(x: number, z: number): number {
   return vnoise(x * 0.18, z * 0.18) * 0.6 + vnoise(x * 0.41 + 7, z * 0.41 - 3) * 0.3 + vnoise(x * 0.9, z * 0.9) * 0.1
 }
 
-/** Channel distance and bed elevation (world y) at (x, z). */
-export function channelAt(x: number, z: number): { d: number; bed: number } {
-  // Distance is to the nearest reach; bed elevation is an inverse-distance
+export type ChannelPoint = {
+  /** distance to the nearest reach centreline */
+  d: number
+  /** valley-floor elevation (world y), blended over all reaches */
+  bed: number
+  /** channel half-width at the nearest point */
+  hw: number
+  /** nearest reach: upstream and downstream cross-section, and position along it */
+  source: string
+  target: string
+  t: number
+  /** downstream unit direction of the nearest reach, in x and z */
+  dirX: number
+  dirZ: number
+}
+
+/** Nearest channel point at (x, z): distance, floor elevation, width and reach. */
+export function channelAt(x: number, z: number): ChannelPoint {
+  // Distance is to the nearest reach; floor elevation is an inverse-distance
   // blend over all reaches, so the ground has no step where the nearest
   // channel switches from a high tributary to the low main stem.
   let best = Infinity
+  let bi = 0
+  let bt = 0
   let wsum = 0
   let bsum = 0
-  for (const s of segs) {
+  for (let i = 0; i < segs.length; i++) {
+    const s = segs[i]
     const vx = s.bx - s.ax
     const vz = s.bz - s.az
     const wx = x - s.ax
@@ -76,20 +129,47 @@ export function channelAt(x: number, z: number): { d: number; bed: number } {
     const dx = wx - vx * t
     const dz = wz - vz * t
     const d2 = dx * dx + dz * dz
-    if (d2 < best) best = d2
+    if (d2 < best) {
+      best = d2
+      bi = i
+      bt = t
+    }
     const w = 1 / (d2 * d2 + 1e-4)
     wsum += w
     bsum += w * (s.ay + (s.by - s.ay) * t)
   }
-  return { d: Math.sqrt(best), bed: bsum / wsum }
+  const s = segs[bi]
+  const len = Math.hypot(s.bx - s.ax, s.bz - s.az) || 1
+  return {
+    d: Math.sqrt(best),
+    bed: bsum / wsum,
+    hw: s.hwa + (s.hwb - s.hwa) * bt,
+    source: s.source,
+    target: s.target,
+    t: bt,
+    dirX: (s.bx - s.ax) / len,
+    dirZ: (s.bz - s.az) / len,
+  }
+}
+
+/** Floodplain and valley walls above the bank, as a function of distance from the channel edge. */
+function rise(x: number, z: number, d: number, hw: number): number {
+  const e = Math.max(0, d - hw)
+  const wall = 0.5 * (1 - Math.exp(-(e * e) / 3.5)) + 0.05 * e
+  const relief = (fbm(x, z) - 0.5) * 0.5 * Math.min(1, e / 3)
+  return wall + relief
+}
+
+/** Channel bottom (world y) under the nearest centreline point: where water depth is measured from. */
+export function thalwegAt(c: ChannelPoint): number {
+  return c.bed - 0.12 - BANK_H
 }
 
 /** Terrain height (world y) at (x, z). */
-export function terrainHeight(x: number, z: number): number {
-  const { d, bed } = channelAt(x, z)
-  const wall = 0.5 * (1 - Math.exp(-(d * d) / 3.5)) + 0.05 * d
-  const relief = (fbm(x, z) - 0.5) * 0.5 * Math.min(1, d / 3)
-  return bed - 0.12 + wall + relief
+export function terrainHeight(x: number, z: number, c: ChannelPoint = channelAt(x, z)): number {
+  const u = c.d / c.hw
+  const carve = u < 1 ? BANK_H * (1 - u * u) : 0
+  return c.bed - 0.12 - carve + rise(x, z, c.d, c.hw)
 }
 
 /** World y back to metres above datum, for printed soundings. */

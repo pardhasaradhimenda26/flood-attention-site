@@ -6,6 +6,8 @@ import { Section } from '../components/Section'
 import { SectionHead } from '../components/SectionHead'
 import { CorrelatesChart, GateChart, TrapAxis } from '../components/FindingCharts'
 import { StatusFigure } from '../components/StatusFigure'
+import { ClaimBlock } from '../components/ClaimBlock'
+import { claims, type Claim } from '../data/claims'
 
 /*
   The negative results carry the page. Each finding leads with the number
@@ -15,12 +17,14 @@ import { StatusFigure } from '../components/StatusFigure'
 
 function Finding({
   title,
+  claim,
   figure,
   children,
   chart,
   caption,
 }: {
   title: string
+  claim: Claim
   figure: ReactNode
   children: ReactNode
   chart: ReactNode
@@ -28,6 +32,7 @@ function Finding({
 }) {
   return (
     <article className="border-t-2 border-ink pt-6">
+      <ClaimBlock claim={claim} size="h3" className="mb-10" />
       <div className="grid gap-x-12 gap-y-8 lg:grid-cols-12">
         <div className="min-w-0 lg:col-span-5">
           <h3 className="cut-semi text-h3 font-semibold">{title}</h3>
@@ -103,6 +108,7 @@ export function Findings() {
       <div className="mt-16 space-y-24">
         <Finding
           title={w4.title}
+          claim={claims.week4}
           figure={
             <>
               <BigNumber id="w4_own_r2" label="R² of a node’s own 24-hour history, one hour ahead. Nothing left for the graph to explain." />
@@ -115,12 +121,14 @@ export function Findings() {
           {w4.paragraphs.map((p, i) => (
             <p key={i}>{tpl(p, w4vars)}</p>
           ))}
+          <ClaimBlock claim={claims.gate} />
           <p>{tpl(w4.gate, gateVars)}</p>
           <p className="text-ink-soft">{tpl(w4.exception, gateVars)}</p>
         </Finding>
 
         <Finding
           title={trap.title}
+          claim={claims.trap}
           figure={
             <>
               <BigNumber id="trap_untrained" label="Plain within-node r on a GATv2 with random weights. The headline this metric would have produced, struck through." struck />
@@ -149,6 +157,7 @@ export function Findings() {
 
         <Finding
           title={lrn.title}
+          claim={claims.learned}
           figure={
             <BigNumber id="att_local_area" label="Correlation of attention with upstream contributing area, same sign in all 8 basins." />
           }

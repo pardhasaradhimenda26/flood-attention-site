@@ -3,6 +3,7 @@ import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { site } from './src/data/content'
 import { metaDescription, noscriptHtml } from './src/lib/summary'
+import { lagHours } from './src/lib/storm'
 
 /** Preload the two fonts the first screen needs (Archivo latin, Plex Mono latin 400). */
 function preloadFonts(): Plugin {
@@ -31,7 +32,7 @@ function preloadFonts(): Plugin {
  * nulls included. Crawlers and link previews read the same numbers the page shows.
  */
 function staticShell(): Plugin {
-  const title = 'Flood wave attention — what held, and what did not'
+  const title = 'Rain falls in the hills. The flood arrives days later.'
   return {
     name: 'static-shell',
     transformIndexHtml(html) {
@@ -49,7 +50,7 @@ function staticShell(): Plugin {
           ['meta', { property: 'og:image', content: og }],
           ['meta', { property: 'og:image:width', content: '1200' }],
           ['meta', { property: 'og:image:height', content: '630' }],
-          ['meta', { property: 'og:image:alt', content: 'A flood pulse travelling down a river network in a dark valley, beside the headline “Four gauges, twenty-eight cross-sections.”' }],
+          ['meta', { property: 'og:image:alt', content: `Rain falling on the head of a river valley while the water there rises, the outlet still calm, beside the headline “Rain falls in the hills. The flood arrives days later.” and a storm timeline marking the ${lagHours}-hour lag.` }],
           ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
           ['meta', { name: 'twitter:title', content: title }],
           ['meta', { name: 'twitter:description', content: desc }],

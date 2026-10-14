@@ -7,6 +7,8 @@ import { SectionHead } from '../components/SectionHead'
 import { RolloutChart } from '../components/RolloutChart'
 import { MetricTable } from '../components/MetricTable'
 import { StatusFigure } from '../components/StatusFigure'
+import { ClaimBlock } from '../components/ClaimBlock'
+import { claims } from '../data/claims'
 
 type Row = NonNullable<BasinComparison>[number]
 
@@ -125,8 +127,9 @@ export function Results() {
         <p className="mt-4 max-w-measure text-small text-ink-soft">{resultsCopy.rolloutCaption}</p>
       </div>
 
+      <ClaimBlock claim={claims.accuracy} size="h3" className="mt-14" />
       {gm && gm.status !== 'pending' ? (
-        <div className="mt-14 grid gap-x-12 gap-y-6 lg:grid-cols-12">
+        <div className="mt-8 grid gap-x-12 gap-y-6 lg:grid-cols-12">
           <StatusFigure id="gat_vs_gcn" size="compact" className="min-w-0 lg:col-span-4" caption="GAT over GCN, all eight basins pooled" />
           <div className="min-w-0 max-w-measure space-y-3 lg:col-span-8">
             <p className="text-lead text-ink">
@@ -151,6 +154,7 @@ export function Results() {
       {hm && hm.status !== 'pending' && (
         <div className="mt-16 border-t-hair border-ink pt-6">
           <h3 className="text-h3">{resultsCopy.heldHeading}</h3>
+          <ClaimBlock claim={claims.heldOut} className="mt-4" />
           <div className="mt-6 grid gap-x-12 gap-y-6 lg:grid-cols-12">
             <StatusFigure id="gat_vs_gcn_held" size="compact" className="min-w-0 lg:col-span-4" caption="GAT over GCN, held-out basins only" />
             <div className="min-w-0 max-w-measure space-y-3 lg:col-span-8">
@@ -172,6 +176,7 @@ export function Results() {
 
       <h3 className="mt-20 text-h3">{resultsCopy.ablationHeading}</h3>
       <p className="mt-3 max-w-measure text-body text-ink-soft">{resultsCopy.ablationIntro}</p>
+      <ClaimBlock claim={claims.undirected} className="mt-6" />
       {um && und && um.status !== 'pending' && (
         <div className="mt-6 grid gap-x-12 gap-y-6 lg:grid-cols-12">
           <StatusFigure id="undirected_gain" size="compact" className="min-w-0 lg:col-span-4" caption="Undirected graph vs the directed reference" />

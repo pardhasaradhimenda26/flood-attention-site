@@ -48,10 +48,12 @@ export default {
         measure: '66ch',
         narrow: '52ch',
         lede: '42ch',
+        'lede-wide': '36rem',
         figure: '76rem',
         caption: '28ch',
         headline: '16ch',
         panel: '24rem',
+        tip: '18rem',
       },
       spacing: {
         rail: '5.5rem',

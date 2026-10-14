@@ -78,6 +78,20 @@
   .eq mi { font-style: italic; }
   .eq mtext { font-style: normal; }
 
+  /* A glossary term: dotted underline, the survey chart's convention for a defined feature. */
+  .term {
+    font: inherit;
+    text-decoration-line: underline;
+    text-decoration-style: dotted;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 0.22em;
+    text-decoration-color: var(--fg-soft);
+  }
+  .term:hover,
+  .term[aria-expanded='true'] {
+    text-decoration-color: currentColor;
+  }
+
   .pending-hatch {
     background-image: var(--hatch);
   }
@@ -125,7 +139,8 @@
 
 /* Touch: every control is at least 44px tall, without changing the desktop layout. */
 @media (pointer: coarse) {
-  button {
+  /* Inline glossary terms are words in a sentence, exempt like inline links. */
+  button:not(.term) {
     min-height: 44px;
   }
   summary {

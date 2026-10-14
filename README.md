@@ -56,6 +56,27 @@ resamples basins and seeds independently (10,000 draws, fixed seed), because
 basin–seed pairs that share a basin or a seed are not independent. Where that
 replaced a t-test, the old result is kept in `supersedes`.
 
+## The hero storm and the content system
+
+The hero plays one real storm from basin_01's record, chosen by rule in
+`pick_storm` (`scripts/generate_data.py`) and exported as `stormEvent` in
+`network.ts`: rain, water depth and velocity for every cross-section, hour by
+hour, and discharge at the four gauges. `src/lib/storm.ts` reads it; the water
+shader, rain, gauge boards and timeline all draw from it. Water depth in the 3D
+is exaggerated (`STAGE_SCALE`) and the scene label says so. Design notes:
+`docs/design-plan.md`.
+
+Every technical claim is a record in `src/data/claims.ts` with a one-sentence
+plain line, the technical line, its status and the metrics it rests on; a test
+fails if the status is stronger than the weakest metric. Technical words are
+defined once in `src/data/glossary.ts` and marked in copy as `[[term]]` or
+`[[shown text|term-id]]`; `<Rich>` renders them as dotted-underline controls.
+
+| URL parameter | effect |
+|---|---|
+| `?hour=N` | hold the storm at hour N |
+| `?debug=frames` | count rendered frames per canvas in `window.__frames` |
+
 ## Tests
 
 ```bash

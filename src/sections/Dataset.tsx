@@ -5,6 +5,9 @@ import { dataset, tpl } from '../data/content'
 import { mv } from '../lib/metrics'
 import { Section } from '../components/Section'
 import { SectionHead } from '../components/SectionHead'
+import { Rich } from '../components/Rich'
+import { ClaimBlock } from '../components/ClaimBlock'
+import { claims } from '../data/claims'
 import { LazyMount } from '../components/LazyMount'
 import { bankfull, bedSlope, hydraulics, manningN, profile, sectionNode, stageMax, stageMin } from '../lib/section'
 import { gaugeName } from '../lib/graph'
@@ -162,10 +165,11 @@ export function Dataset() {
       <SectionHead section="dataset" id="dataset-h">
         {dataset.heading}
       </SectionHead>
+      <ClaimBlock claim={claims.checkable} size="h3" className="mb-10" />
       <div className="grid gap-x-12 gap-y-5 lg:grid-cols-2">
         {dataset.paragraphs.map((p, i) => (
           <p key={i} className="max-w-measure text-body">
-            {tpl(p, vars)}
+            <Rich text={p} vars={vars} />
           </p>
         ))}
       </div>

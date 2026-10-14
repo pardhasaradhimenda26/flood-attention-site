@@ -20,25 +20,17 @@ export const site = {
 }
 
 export const hero = {
-  headline: 'Four gauges, twenty-eight cross-sections. Forecasting the flood at the other twenty-four.',
+  headline: 'Rain falls in the hills. The flood arrives days later.',
+  question: 'What is the water doing where nobody is measuring?',
   lede:
-    'A temporal graph attention network that passes messages down a river network to forecast discharge where nothing is measured. Built and tested on eight synthetic basins with the real network’s proportions, ahead of the real gauge record.',
-  readings: [
-    { metric: 'real_ungauged', caption: 'of the real network’s cross-sections have no gauge' },
-    { metric: 'gat_vs_gcn', caption: 'lower error than a GCN at ungauged sections, pooled over eight synthetic basins' },
-    {
-      metric: 'att_tt_r',
-      caption: 'correlation between learned attention and travel time — the thesis’s main claim, which did not hold',
-      pendingCaption: 'correlation between learned attention and travel time, once the GAT run is in',
-    },
-  ],
+    'Four places on this river have a sensor that records how high the water is. Everywhere else, nobody knows. This project teaches a computer to estimate the water at those other places, from the four sensors and from what happened upstream.',
   sceneLabel:
-    'Three-dimensional model of synthetic basin 01. An 18-node main stem and two tributaries lie in a valley. A flood pulse released at the three headwaters travels downstream, reaching each cross-section after the summed travel time of the reaches above it, and growing dimmer and broader as it goes. Four gauged sections carry staff gauges.',
-  clockLabel: 'Hours since release',
-  replay: 'Release again',
-  settled: 'First pass complete',
-  frozen: 'Reduced motion: held at the moment the main-stem peak reaches the confluence',
-  tableSummary: 'Wave arrival at each gauge, from the summed travel time of the reaches above it',
+    'A river valley seen from downstream, during one real storm from the project’s data. Rain falls first on the hills at the top of the valley. Within hours the water rises there and spreads over the low ground beside the river. About {lag} hours after the heaviest rain the rise reaches the bottom of the valley. Four gauge towers stand by the river and show the depth they measure; the other {ungauged} marked places across the river have no reading. Water depth is exaggerated so it can be seen.',
+  timelineLabel: 'Storm hour',
+  replay: 'Replay the storm',
+  frozen: 'Reduced motion: held at the hour the river carries the most water.',
+  tableToggle: 'Read the storm as a table',
+  tableCaption: 'The same storm at the four gauges: when the water peaked and how deep it got.',
 }
 
 export const verdict = {
@@ -47,7 +39,6 @@ export const verdict = {
     'The project tested two claims. Attention improved accuracy over a GCN, by a margin that is real but uncertain. Attention did not learn travel time, which was the thesis’s main contribution. Results on the real gauges are pending.',
   accuracy: {
     title: 'Accuracy: a qualified gain',
-    claim: 'Claim: replacing the GCN’s fixed average with learned attention lowers forecast error at ungauged sections.',
     caption:
       'Lower ungauged discharge error than the GCN, pooled over all eight synthetic basins. The interval resamples basins and seeds, because basin–seed pairs that share either are not independent.',
     heldTitle: 'Held-out basins, reported separately',
@@ -55,8 +46,6 @@ export const verdict = {
   },
   attention: {
     title: 'Interpretability: did not hold',
-    claim:
-      'Claim: attention weights recover each reach’s hydraulic travel time above chance. Measured with a hop-stratified correlation against a permutation null.',
     captions: {
       att_tt_r: 'Trained attention vs travel time, all message edges.',
       att_tt_r_routing: 'The same on one-hop routing edges. Wrong sign.',
@@ -67,7 +56,6 @@ export const verdict = {
       'All four on one correlation axis, each with its 95% interval. Squares are point estimates; dashed intervals are qualified, solid verified. The reach-length baseline sits to the right of both attention correlations.',
     gap: 'Attention minus the reach-length baseline',
   },
-  pendingLabel: 'Real gauges H1–H4, GAT vs GCN',
 }
 
 /** The interpretability result in one view, in this order (Verdict section). */
@@ -81,36 +69,39 @@ export const VERDICT_ROWS = [
 export const problem = {
   heading: 'Most of a river is never measured',
   paragraphs: [
-    'The real network this thesis targets has {sections} surveyed cross-sections and {gauges} gauges, H1 to H4. At {unmeasured} of the {sections} sections — {pct}% — there is no record of discharge or stage at all. A forecast there has to come from somewhere else.',
-    'The somewhere else is upstream. A flood wave released in the headwaters reaches a downstream section hours or days later, lower and broader, because the channel stores water as the wave passes and releases it slowly. Muskingum routing describes a reach with two numbers: K, its travel time, and X, how much water it holds in a wedge ahead of the wave.',
+    'The real network this thesis targets has {sections} surveyed [[cross-sections|cross-section]] and {gauges} [[gauges|gauge]], H1 to H4. At {unmeasured} of the {sections} sections — {pct}% — there is no record of [[discharge]] or [[stage]] at all. A forecast there has to come from somewhere else.',
+    'The somewhere else is upstream. The storm at the top of the page took {lag} hours to get from the [[headwaters|headwater]] to the outlet. That delay is the [[travel time|travel-time]], and it is set by the [[celerity]] of the flood wave. On the way the wave gets lower and broader, because the channel stores water as it passes and lets it go slowly. [[Muskingum routing|muskingum]] describes each [[reach]] with two numbers: K, its travel time, and X, how much water it holds ahead of the wave.',
     'That lag is what a model has to learn. A section’s future depends on what was happening upstream one travel time ago, and the delay is different for every reach.',
   ],
   figureTitle: 'One storm at two gauges',
   caption:
-    'One storm in basin 01, recorded at {up} (headwater) and {down} (mid-basin), {reaches} reaches apart. The downstream record is larger because local inflow joins along the way. Routing the headwater record alone through the same {reaches} reaches, with the dataset’s own K and X, isolates the wave: its peak arrives {lag} h later at {pct}% of its height. Drag across the plot or use the arrow keys to read values.',
+    'A [[hydrograph]] of one storm in basin 01, recorded at {up} (headwater) and {down} (mid-basin), {reaches} reaches apart. The downstream record is larger because local inflow joins along the way. Routing the headwater record alone through the same {reaches} reaches, with the dataset’s own K and X, isolates the wave: its peak arrives {lag} h later at {pct}% of its height. Drag across the plot or use the arrow keys to read values.',
 }
 
 export const approach = {
   heading: 'From a river to a graph, then to attention',
   intro:
     'Four steps, each resting on the one before. The order matters: attention only has something to weigh once the graph carries information a node does not already have.',
+  morph: {
+    before: 'The river',
+    after: 'The graph',
+    beforeLabel:
+      'Plan view of basin 01 as a river: a channel drawn at its true relative width on its floodplain, survey lines across it at each cross-section, and four gauge towers on the bank.',
+    afterLabel:
+      'The same basin as a graph: every cross-section is a node, the four gauges are filled nodes, every reach is an arrow pointing downstream, and dashed arcs link places two and three reaches apart.',
+    stageRiver: 'A river: banks, a channel, survey lines across it, four gauge towers.',
+    stageMid: 'The banks go, the channel becomes a line, each survey line becomes a point.',
+    stageGraph: 'A graph: 28 nodes, the gauged four filled; reaches as arrows; dashed links skip one or two places.',
+    replay: 'Play it again',
+    caption:
+      'Representing a river as a graph keeps what a forecast needs — which place drains into which — and drops what it does not. The dashed links let a place hear from two or three places upstream in one step.',
+  },
+  // Step text lives in claims.ts (graph, passing, physics, attending).
   steps: [
-    {
-      title: 'The river as a directed graph',
-      body: 'Each surveyed cross-section is a node and each reach an edge pointing downstream. Across eight basins that is {nodes} nodes and {edges} edges: {routing} reaches that water flows through, and {message} message-only shortcuts reaching two or three reaches upstream.',
-    },
-    {
-      title: 'Message passing',
-      body: 'Three message-passing layers over edges of up to three hops give each node a receptive field of nine reaches upstream. Gauged nodes receive observed discharge and depth. Ungauged nodes receive zeros and a mask, and have to be filled in from their neighbours.',
-    },
-    {
-      title: 'Mass conservation in the loss',
-      body: 'The loss adds a continuity residual at every node: inflow from upstream reaches, plus local inflow, minus outflow, minus the change in storage. It is weighted at 0.05 and acts as a regulariser, because the residual has a floor near 3% that the data itself does not meet. Travel time appears nowhere in the loss.',
-    },
-    {
-      title: 'Attention',
-      body: 'GATv2 replaces the GCN’s fixed, degree-normalised average with a learned weight on each incoming edge, recomputed at every rollout step. Encoder, depth, width, loss, seeds, splits and early stopping are held identical, so the comparison isolates the aggregation.',
-    },
+    { title: 'The river as a directed graph' },
+    { title: 'Message passing' },
+    { title: 'Mass conservation in the loss' },
+    { title: 'Attention' },
   ],
   equations: {
     continuity: {
@@ -139,9 +130,9 @@ export const approach = {
 export const attentionCopy = {
   heading: 'What uniform aggregation cannot say',
   paragraphs: [
-    'A GCN averages its neighbours with weights fixed by the graph’s structure. At a confluence it gives a small tributary and a large main stem roughly the same say, and it treats a neighbour one reach away and one three reaches away as interchangeable. It has no way to express that influence arrives late.',
-    'Attention can. Each incoming edge gets its own weight, and here the weights are recomputed at every hour of the 12-hour rollout. Switch between the two modes, pick a node, and scrub through the rollout.',
-    'These are the trained model’s weights, not an illustration: last layer, averaged over three seeds, with the spread across seeds beside each value. At the confluence {conf}, the main-stem reach takes {ttMain} h and the tributary {ttTrib} h — genuinely different — and the weights do not follow that difference. They follow how much water each branch carries.',
+    'A [[GCN|gcn]] averages its neighbours with weights fixed by the graph’s structure. At a [[confluence]] it gives a small tributary and a large main stem roughly the same say, and it treats a neighbour one reach away and one three reaches away as interchangeable. It has no way to express that influence arrives late.',
+    '[[Attention]] can. Each incoming [[edge]] gets its own weight, and here the weights are recomputed at every hour of the 12-hour [[rollout]]. Switch between the two modes, pick a node, and scrub through the rollout.',
+    'These are the trained model’s weights, not an illustration: last layer, averaged over three [[seeds|seed]], with the spread across seeds beside each value. At the confluence {conf}, the main-stem reach takes {ttMain} h and the tributary {ttTrib} h — genuinely different — and the weights do not follow that difference. They follow how much water each branch carries.',
   ],
   sceneLabel:
     'Synthetic basin 01 seen from above. Select a node to light up the edges that send it messages, one to three reaches upstream; the rest of the network dims. In learned mode, edge thickness and magenta show the attention weight; in uniform mode every incoming edge is drawn the same.',
@@ -164,9 +155,9 @@ export const attentionCopy = {
 export const dataset = {
   heading: 'A synthetic river, built to be checked',
   paragraphs: [
-    'Real gauge data cannot tell you whether a model has learned routing, because nobody knows the true travel time of each real reach. A synthetic network can: every reach has a known K, X and celerity, so whatever the model learns can be checked against the answer.',
-    'Eight basins were generated with different character — steep upland to coastal plain, celerity 0.70 to 1.95 m/s, Manning’s n from 0.021 to 0.058, one to three tributaries. Discharge is routed reach by reach with the Muskingum method, and mass balance closes at {massBalance} in every basin.',
-    'Travel time is reach length over wave celerity, with an 18% per-reach spread in celerity added on purpose so that length alone cannot stand in for it. Storms are localised by a 2-D kernel of width {kernel}, which leaves {dryRise}% of rising node-hours under a dry sky — samples that only the graph can explain. Reaches are long enough that the 12-hour horizon spans {horizon} mean travel times.',
+    'Real [[gauge]] data cannot tell you whether a model has learned routing, because nobody knows the true travel time of each real reach. A synthetic network can: every reach has a known K, X and [[celerity]], so whatever the model learns can be checked against the answer.',
+    'Eight basins were generated with different character — steep upland to coastal plain, celerity 0.70 to 1.95 m/s, Manning’s n from 0.021 to 0.058, one to three tributaries. Discharge is routed reach by reach with the Muskingum method, and [[mass balance|mass-balance]] closes at {massBalance} in every basin.',
+    '[[Travel time|travel-time]] is reach length over wave celerity, with an 18% per-reach spread in celerity added on purpose so that length alone cannot stand in for it. Storms are localised by a 2-D kernel of width {kernel}, which leaves {dryRise}% of rising node-hours under a dry sky — samples that only the graph can explain. Reaches are long enough that the 12-hour horizon spans {horizon} mean travel times.',
     'Gauges were placed, not sampled: one headwater, one mid-basin, one tributary and one outlet gauge per basin, {gauged} of {nodes} nodes ({gaugedPct}%), matching the real network’s 4 of 28.',
   ],
   caveat:

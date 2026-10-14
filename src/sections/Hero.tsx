@@ -1,49 +1,18 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { hero, site } from '../data/content'
-import { Reading } from '../components/Reading'
-import { isPending } from '../lib/metrics'
 import { NetworkPlan } from '../components/NetworkPlan'
 import { hasWebGL } from '../three/useAdaptiveQuality'
-import { useSite } from '../state'
-import { waveDuration } from '../lib/graph'
 import { HeroGaugeTable } from '../components/HeroGaugeTable'
+import { StormTimeline } from '../components/StormTimeline'
+import { sceneLabel } from '../lib/storm'
 
 const RiverScene = lazy(() => import('../three/RiverScene'))
 
-function HeroClock() {
-  const t = useSite((s) => s.heroTime)
-  const settled = useSite((s) => s.heroSettled)
-  const reduced = useSite((s) => s.reducedMotion)
-  const seek = useSite((s) => s.seekHero)
-  const replay = useSite((s) => s.replayHero)
-  return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-small text-foam-soft">
-      <label className="flex items-center gap-3">
-        <span>{hero.clockLabel}</span>
-        <input
-          type="range"
-          className="range w-36 sm:w-48"
-          min={0}
-          max={Math.ceil(waveDuration)}
-          step={0.5}
-          value={Math.min(t, waveDuration)}
-          onChange={(e) => seek(Number(e.target.value))}
-          aria-valuetext={`${t.toFixed(1)} hours after release`}
-        />
-      </label>
-      <output className="num w-20 text-foam" aria-live="off">
-        t+{t.toFixed(1)} h
-      </output>
-      {settled && !reduced && (
-        <button type="button" onClick={replay} className="underline decoration-foam-soft underline-offset-4 hover:decoration-foam">
-          {hero.replay}
-        </button>
-      )}
-      {reduced && <span className="basis-full text-micro">{hero.frozen}</span>}
-    </div>
-  )
-}
-
+/*
+  Act 1. No jargon: the headline, the valley, one question, and the storm
+  timeline. The four gauge towers answer for four places; nothing answers for
+  the rest of the river.
+*/
 export function Hero() {
   // null until probed. The probe creates a WebGL context, so it runs in the
   // same idle slot that mounts the scene, after the headline has painted.
@@ -74,39 +43,32 @@ export function Hero() {
               <RiverScene />
             </Suspense>
           ) : (
-            // Placeholder while the scene loads: the plan, still, so the wave's
-            // first pass happens once, in 3D.
             <NetworkPlan mode="wave" still className="h-full w-full opacity-30 lg:ml-auto lg:w-3/5 lg:py-16" />
           )
         ) : (
-          <div role="img" aria-label={hero.sceneLabel} className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16">
+          <div role="img" aria-label={sceneLabel} className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16">
             <NetworkPlan mode="wave" className="h-full w-full" />
           </div>
         )}
       </div>
 
-      <div className="pointer-events-none relative z-overlay px-gutter pb-10 pt-6 sm:px-8 lg:ml-rail lg:flex lg:min-h-heroFit lg:flex-col lg:justify-end lg:pb-14 lg:pl-6 lg:pt-24">
-        <div className="pointer-events-auto">
+      <div className="pointer-events-none relative z-overlay flex flex-col lg:min-h-heroFit lg:justify-end lg:pl-rail">
+        <div className="pointer-events-auto px-gutter pb-8 pt-6 sm:px-8 lg:max-w-lede-wide lg:pb-10 lg:pl-6 lg:pt-24">
           <h1 className="cut-condensed max-w-headline text-display tracking-display text-foam">
             <span className="block font-bold">{h1a}.</span>
             <span className="mt-2 block font-light text-foam">{h1b}</span>
           </h1>
-          <p className="mt-6 max-w-lede text-body text-foam-soft">{hero.lede}</p>
+          <p className="mt-6 max-w-lede text-lead text-foam">{hero.question}</p>
+          <p className="mt-4 max-w-lede text-body text-foam-soft">{hero.lede}</p>
           <p className="mt-5 max-w-lede text-small text-foam">
             {site.author}
             <span className="text-foam-soft"> — {site.degree}, {site.institution}</span>
           </p>
         </div>
-        <div className="pointer-events-auto mt-9 grid max-w-figure gap-6 sm:grid-cols-3 sm:gap-8">
-          {hero.readings.map((r) => (
-            <Reading key={r.metric} id={r.metric} caption={(isPending(r.metric) && 'pendingCaption' in r && r.pendingCaption) || r.caption} />
-          ))}
+        <div className="pointer-events-auto border-t-hair border-abyss-line bg-abyss px-gutter pb-5 pt-4 sm:px-8 lg:pl-6 lg:pr-8">
+          <StormTimeline drive={gl === false} />
+          <HeroGaugeTable />
         </div>
-      </div>
-
-      <div className="relative z-overlay px-gutter pb-8 sm:px-8 lg:absolute lg:right-8 lg:top-6 lg:max-w-panel lg:px-0 lg:pb-0">
-        <HeroClock />
-        <HeroGaugeTable />
       </div>
     </header>
   )

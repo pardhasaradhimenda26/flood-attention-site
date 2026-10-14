@@ -4,7 +4,9 @@
                        low            medium          high
     DPR cap            1.0            1.5             2.0
     tube radial segs   6              8               12
-    terrain            64²            128²            192²
+    terrain cells      150 across     230 across      320 across
+    water shader       1 ripple       flow map, foam  + 2nd ripple scale
+    rain drops         1,500          4,000           8,000
     post               none           none            halo on wave only
     shadows            off            off             soft, one light
     hero camera        static + drag  scroll-coupled  scroll-coupled
@@ -33,9 +35,9 @@ export type Quality = {
 }
 
 const TABLE: Record<Tier, Omit<Quality, 'tier'>> = {
-  low: { dpr: [1, 1], radialSegments: 6, tubularPerUnit: 4, terrainRes: 64, halo: false, shadows: false, scrollCamera: false, antialias: false },
-  medium: { dpr: [1, 1.5], radialSegments: 8, tubularPerUnit: 6, terrainRes: 128, halo: false, shadows: false, scrollCamera: true, antialias: true },
-  high: { dpr: [1, 2], radialSegments: 12, tubularPerUnit: 8, terrainRes: 192, halo: true, shadows: true, scrollCamera: true, antialias: true },
+  low: { dpr: [1, 1], radialSegments: 6, tubularPerUnit: 4, terrainRes: 150, halo: false, shadows: false, scrollCamera: false, antialias: false },
+  medium: { dpr: [1, 1.5], radialSegments: 8, tubularPerUnit: 6, terrainRes: 230, halo: false, shadows: false, scrollCamera: true, antialias: true },
+  high: { dpr: [1, 2], radialSegments: 12, tubularPerUnit: 8, terrainRes: 320, halo: true, shadows: true, scrollCamera: true, antialias: true },
 }
 
 const WEAK_GPU = /(mali-[2-4]\d{2}|mali-t|mali-g(31|51|52|57)|adreno \(tm\) [2-5]\d{2}|powervr|swiftshader|llvmpipe|software|intel\(r\) hd graphics [2-5]\d{2,3}|mesa offscreen)/i

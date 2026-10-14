@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { hero, verdict } from '../data/content'
+import { verdict } from '../data/content'
+import { sceneLabel } from '../lib/storm'
 
 // The WebGL probe answers "no", as it does on a machine without WebGL.
 vi.mock('../three/useAdaptiveQuality', async (orig) => {
@@ -12,7 +13,7 @@ describe('WebGL fallback', () => {
   it('mounts the static network plan, with real content, when WebGL is unavailable', async () => {
     const { Hero } = await import('./Hero')
     render(<Hero />)
-    const img = await screen.findByRole('img', { name: hero.sceneLabel }, { timeout: 3000 })
+    const img = await screen.findByRole('img', { name: sceneLabel }, { timeout: 3000 })
     // the plan draws the actual network: one path per routing reach at least
     expect(img.querySelectorAll('path, line, circle').length).toBeGreaterThan(10)
   })
@@ -37,5 +38,26 @@ describe('sections mount and state their claims', () => {
     const { container } = render(<Results />)
     expect(container.textContent).toContain('Held-out basins, on their own')
     expect(container.textContent).not.toMatch(/\{\w+\}/) // no unfilled template placeholder
+  })
+})
+
+describe('every act mounts', () => {
+  it('Problem, Approach, Attention, Dataset, Rigor and the footer render without errors', async () => {
+    const mods = await Promise.all([
+      import('./Problem'),
+      import('./Approach'),
+      import('./Attention'),
+      import('./Dataset'),
+      import('./Rigor'),
+      import('./Footer'),
+    ])
+    const [P, A, At, D, R, F] = [mods[0].Problem, mods[1].Approach, mods[2].Attention, mods[3].Dataset, mods[4].Rigor, mods[5].Footer]
+    for (const C of [P, A, At, D, R, F]) {
+      const { container, unmount } = render(<C />)
+      expect(container.textContent!.length).toBeGreaterThan(50)
+      // Template placeholders are two letters or more; the attention equation has a genuine {i}.
+      expect(container.textContent).not.toMatch(/\{[a-zA-Z]{2,}\w*\}|\[\[|NaN|undefined/)
+      unmount()
+    }
   })
 })

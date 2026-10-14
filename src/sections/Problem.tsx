@@ -1,10 +1,14 @@
-import { problem, tpl } from '../data/content'
+import { problem } from '../data/content'
 import { problemHydrograph } from '../data/network'
 import { metric } from '../lib/metrics'
 import { Section } from '../components/Section'
 import { SectionHead } from '../components/SectionHead'
 import { Hydrograph } from '../components/Hydrograph'
 import { hydroStats } from '../lib/hydro'
+import { Rich } from '../components/Rich'
+import { ClaimBlock } from '../components/ClaimBlock'
+import { claims } from '../data/claims'
+import { lagHours } from '../lib/storm'
 
 /** The real network as a unit chart: one mark per cross-section. Proportion only, not position. */
 function GaugeStrip({ sections, gauges }: { sections: number; gauges: number }) {
@@ -44,6 +48,7 @@ export function Problem() {
     gauges,
     unmeasured: sections - gauges,
     pct: Math.round((100 * (sections - gauges)) / sections),
+    lag: lagHours,
   }
   const st = hydroStats()
   return (
@@ -51,25 +56,32 @@ export function Problem() {
       <SectionHead section="problem" id="problem-h">
         {problem.heading}
       </SectionHead>
+      <ClaimBlock claim={claims.unmeasured} size="h3" className="mb-10" />
       <div className="grid gap-12 lg:grid-cols-12">
-        <div className="prose-body lg:col-span-7">
+        <div className="prose-body min-w-0 lg:col-span-7">
           {problem.paragraphs.map((p, i) => (
-            <p key={i}>{tpl(p, vars)}</p>
+            <p key={i}>
+              <Rich text={p} vars={vars} />
+            </p>
           ))}
           <GaugeStrip sections={sections} gauges={gauges} />
         </div>
       </div>
       <figure className="mt-16 border-t-hair border-ink pt-4">
-        <h3 className="mb-6 text-h3">{problem.figureTitle}</h3>
+        <h3 className="mb-4 text-h3">{problem.figureTitle}</h3>
+        <ClaimBlock claim={claims.lag} className="mb-8" />
         <Hydrograph />
         <figcaption className="mt-5 max-w-measure text-small text-ink-soft">
-          {tpl(problem.caption, {
-            up: st.up,
-            down: st.down,
-            reaches: problemHydrograph.reaches,
-            lag: st.lagRouted,
-            pct: st.pctRouted,
-          })}
+          <Rich
+            text={problem.caption}
+            vars={{
+              up: st.up,
+              down: st.down,
+              reaches: problemHydrograph.reaches,
+              lag: st.lagRouted,
+              pct: st.pctRouted,
+            }}
+          />
         </figcaption>
       </figure>
     </Section>

@@ -1,0 +1,165 @@
+import type { Status } from './results'
+import { termsIn } from './glossary'
+import { ciOf, metric, mv } from '../lib/metrics'
+import { fmt } from '../lib/format'
+
+/*
+  Every technical claim on the page, in two layers (CLAUDE_FAS.md §4):
+
+    plain      one sentence a reader with no background can follow
+    technical  the precise, qualified statement, with its numbers
+    status     the claim's evidential status; it must equal the weakest
+               status among the metrics it cites (claims.test.ts enforces it)
+    terms      glossary terms used, from the [[markers]] in either line
+
+  Numbers are filled from results.ts here, never typed.
+*/
+
+export type TermRef = string
+
+export type Claim = {
+  id: string
+  plain: string
+  technical: string
+  status: Status
+  terms: TermRef[]
+  /** metric ids the claim rests on */
+  metrics: string[]
+}
+
+function claim(id: string, status: Status, metrics: string[], plain: string, technical: string): Claim {
+  const terms = [...termsIn(plain), ...termsIn(technical)].map((t) => t.term?.id ?? `?${t.shown}`)
+  return { id, plain, technical, status, terms: [...new Set(terms)], metrics }
+}
+
+const pct = (id: string) => mv(id, true)
+const num = (id: string) => Number(metric(id)?.value)
+
+export const claims = {
+  // ---- Act 2: why it is hard
+  unmeasured: claim(
+    'unmeasured',
+    'verified',
+    ['real_sections', 'real_gauges', 'real_ungauged'],
+    'Most of a river has no sensor, so nobody knows how high the water is there.',
+    `The real network has ${mv('real_sections')} surveyed [[cross-sections|cross-section]] and ${mv('real_gauges')} [[gauges|gauge]], H1 to H4: ${pct('real_ungauged')} of sections have no record of [[discharge]] or [[stage]].`,
+  ),
+  lag: claim(
+    'lag',
+    'verified',
+    ['mean_tt'],
+    'A flood takes hours or days to travel down a river, and the delay is different on every stretch.',
+    `Each [[reach]] has its own [[travel time|travel-time]], set by its length and the flood wave’s [[celerity]]; in the simulated basins the mean is ${mv('mean_tt', true)} per reach. [[Muskingum routing|muskingum]] describes a reach by K, its travel time, and X, how much water it stores ahead of the wave.`,
+  ),
+
+  // ---- Act 3: the idea
+  graph: claim(
+    'graph',
+    'verified',
+    ['nodes', 'edges'],
+    'Each place on the river becomes a point, and each stretch of channel becomes a link between two points.',
+    `Each surveyed [[cross-section]] is a [[node]] and each reach an [[edge]] pointing downstream: ${mv('nodes')} nodes and ${mv('edges')} edges across eight [[basins|basin]], including message-only shortcuts two or three [[hops|hop]] long.`,
+  ),
+  passing: claim(
+    'passing',
+    'verified',
+    ['gauged_pct'],
+    'Places without a sensor are filled in from the places upstream of them.',
+    `Three [[message-passing]] layers over edges of up to three hops reach nine reaches upstream. [[Gauged|gauge]] nodes (${pct('gauged_pct')}) receive observed discharge and depth; [[ungauged]] nodes receive zeros and a mask.`,
+  ),
+  physics: claim(
+    'physics',
+    'verified',
+    [],
+    'The model is penalised whenever its forecast creates or loses water.',
+    'The loss adds a [[continuity]] residual at every node — inflow from upstream reaches, plus local inflow, minus outflow, minus the change in storage — weighted at 0.05. Travel time appears nowhere in the loss or the inputs.',
+  ),
+  attending: claim(
+    'attending',
+    'verified',
+    [],
+    'Instead of treating every upstream place equally, the model learns how much to listen to each one.',
+    'A [[GAT|gat]] (GATv2) replaces the [[GCN|gcn]]’s fixed, degree-normalised average with a learned [[attention]] weight on each incoming edge, recomputed at every hour of the [[rollout]]. Everything else is held identical.',
+  ),
+  junction: claim(
+    'junction',
+    'qualified',
+    ['att_tt_r', 'att_local_area'],
+    'At a junction the model listens more to the bigger branch, but not to the branch whose water arrives first.',
+    `Learned weights at the [[confluence]] follow upstream area (r ${mv('att_local_area')}), not travel time (hop-stratified r ${mv('att_tt_r')}, ${ciOf('att_tt_r')}).`,
+  ),
+  checkable: claim(
+    'checkable',
+    'verified',
+    ['basins', 'mass_balance'],
+    'The test river is simulated, so the right answer is known everywhere and the model can be checked against it.',
+    `${mv('basins')} [[synthetic]] basins with known K, X and celerity on every reach; [[mass balance|mass-balance]] closes at ${mv('mass_balance')} in every basin.`,
+  ),
+
+  // ---- Act 4: what held, and what did not
+  accuracy: claim(
+    'accuracy',
+    'qualified',
+    ['gat_vs_gcn'],
+    'Learned attention made the forecasts somewhat more accurate, by an amount that is real but uncertain.',
+    `GAT over GCN, ungauged discharge [[RMSE|rmse]]: ${pct('gat_vs_gcn')}, [[95% interval|interval]] from a [[bootstrap]] over basins and [[seeds|seed]]: ${ciOf('gat_vs_gcn').replace('95% interval ', '')}. Pooled over 8 basins, 3 seeds.`,
+  ),
+  heldOut: claim(
+    'heldOut',
+    'qualified',
+    ['gat_vs_gcn_held'],
+    'On rivers the model had never seen, the improvement could not be confirmed.',
+    `[[Held-out|held-out]] basins only: ${pct('gat_vs_gcn_held')}, ${ciOf('gat_vs_gcn_held')} — the interval includes zero.`,
+  ),
+  physicsNull: claim(
+    'physicsNull',
+    'qualified',
+    ['att_tt_r', 'att_tt_r_routing', 'att_confound', 'att_vs_confound', 'att_seed_r'],
+    'We checked whether the model learned real river physics, and it did not: a far simpler rule predicted the timings better.',
+    `Hop-stratified [[correlation]] of attention with travel time: ${mv('att_tt_r')} (${ciOf('att_tt_r')}); ${mv('att_tt_r_routing')} on routing edges. Reach length alone, the [[confound]], scores ${mv('att_confound')}; attention minus it is ${mv('att_vs_confound')} (${ciOf('att_vs_confound')}). Seeds agree at ${mv('att_seed_r')}.`,
+  ),
+  realPending: claim(
+    'realPending',
+    'pending',
+    ['real_gat_vs_gcn'],
+    'Nobody has tested this on the real river’s sensors yet.',
+    'GAT vs GCN on the H1–H4 gauge record: pending. Every number on this page comes from synthetic basins.',
+  ),
+  week4: claim(
+    'week4',
+    'qualified',
+    ['w4_own_r2', 'w4_gain_6h', 'w4_gain_12h', 'w4_gcn_win'],
+    'At first the river connections added nothing, because each sensor’s own history already told the model what would happen next.',
+    `With its own history, a node’s discharge one hour ahead had [[R²|r-squared]] ${mv('w4_own_r2')}; adding upstream history changed mean R² by ${mv('w4_gain_6h')} at 6 h and ${mv('w4_gain_12h')} at 12 h. The GCN beat the [[MLP|mlp]] in one basin of three (${pct('w4_gcn_win')}, ${ciOf('w4_gcn_win')}).`,
+  ),
+  gate: claim(
+    'gate',
+    'qualified',
+    ['gate_all', 'gate_served'],
+    'Once sensors were taken away from most places, the upstream information became genuinely useful.',
+    `Gate test, ΔR² at ungauged nodes: ${mv('gate_all')} overall (below the pass mark in one basin of eight), ${mv('gate_served')} where a gauged node is within reach upstream; pass mark 0.05, so ${fmt(num('gate_served') / 0.05, 1)} times over.`,
+  ),
+  trap: claim(
+    'trap',
+    'verified',
+    ['trap_untrained', 'trap_confound'],
+    'The first way of scoring the model’s attention gave a near-perfect result even for a model that had learned nothing.',
+    `Plain within-node r on an untrained GATv2: ${mv('trap_untrained')}, because hop count drives both reach length and travel time (r ${mv('trap_confound')}). Replaced by a hop-stratified r scored against a [[permutation null|permutation-null]].`,
+  ),
+  learned: claim(
+    'learned',
+    'qualified',
+    ['att_local_area', 'att_mean_q', 'att_tt_r'],
+    'The model learned to listen to the branch carrying more water, not to the branch whose water arrives sooner.',
+    `Attention vs upstream local area ${mv('att_local_area')} and upstream mean discharge ${mv('att_mean_q')}, same sign in all 8 basins; vs travel time ${mv('att_tt_r')}.`,
+  ),
+  undirected: claim(
+    'undirected',
+    'qualified',
+    ['undirected_gain'],
+    'Letting information flow upstream as well as down looked like a big gain, but it did not survive a careful check.',
+    `[[Ablation]], undirected graph vs the directed reference: ${pct('undirected_gain')}, ${ciOf('undirected_gain')}; better in only some basin–seed pairs, mechanism unexplained.`,
+  ),
+} satisfies Record<string, Claim>
+
+export type ClaimId = keyof typeof claims

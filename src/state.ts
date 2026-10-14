@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { confluence, freezeTime } from './lib/graph'
+import { confluence } from './lib/graph'
+import { holdHour } from './lib/storm'
 
 export type AggMode = 'uniform' | 'learned'
 
@@ -7,7 +8,7 @@ type SiteState = {
   reducedMotion: boolean
   setReducedMotion: (v: boolean) => void
 
-  /* hero wave clock: the scene owns time, the DOM reads a throttled copy */
+  /* hero storm clock, in storm hours: the scene owns time, the DOM reads a throttled copy */
   heroTime: number
   heroPlaying: boolean
   heroSettled: boolean
@@ -39,13 +40,21 @@ const prefersReduced =
   (window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
     new URLSearchParams(window.location.search).get('motion') === 'reduce')
 
+// ?hour=N holds the storm at hour N (for inspection and the share image).
+const heldHour = (() => {
+  if (typeof window === 'undefined') return null
+  const v = new URLSearchParams(window.location.search).get('hour')
+  const n = v == null ? NaN : Number(v)
+  return Number.isFinite(n) ? n : null
+})()
+
 export const useSite = create<SiteState>((set, get) => ({
   reducedMotion: prefersReduced,
   setReducedMotion: (v) => set({ reducedMotion: v }),
 
-  heroTime: prefersReduced ? freezeTime : 0,
-  heroPlaying: !prefersReduced,
-  heroSettled: prefersReduced,
+  heroTime: prefersReduced ? holdHour : heldHour ?? 0,
+  heroPlaying: !prefersReduced && heldHour == null,
+  heroSettled: prefersReduced || heldHour != null,
   heroSeekTo: null,
   setHeroTime: (t) => set({ heroTime: t }),
   setHeroSettled: (v) => set({ heroSettled: v, heroPlaying: v ? false : get().heroPlaying }),

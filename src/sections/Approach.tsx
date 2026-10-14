@@ -1,37 +1,35 @@
-import { approach, tpl } from '../data/content'
-import { metric } from '../lib/metrics'
+import { approach } from '../data/content'
 import { Section } from '../components/Section'
 import { SectionHead } from '../components/SectionHead'
 import { Continuity, EquationBlock, GatV2, Muskingum, Residual } from '../components/EquationBlock'
+import { RiverToGraph } from '../components/RiverToGraph'
+import { ClaimBlock } from '../components/ClaimBlock'
+import { claims } from '../data/claims'
+
+const STEP_CLAIMS = [claims.graph, claims.passing, claims.physics, claims.attending]
 
 export function Approach() {
-  const edges = Number(metric('edges')?.value ?? 651)
-  const note = metric('edges')?.note ?? ''
-  const routing = Number(/(\d+) routing/.exec(note)?.[1] ?? 225)
-  const vars = {
-    nodes: String(metric('nodes')?.value ?? 233),
-    edges,
-    routing,
-    message: edges - routing,
-  }
   const eq = approach.equations
   return (
     <Section id="approach" ground="paper">
       <SectionHead section="approach" id="approach-h">
         {approach.heading}
       </SectionHead>
+      <div className="mb-16">
+        <RiverToGraph />
+      </div>
       <p className="max-w-measure text-lead text-ink">{approach.intro}</p>
 
-      {/* The one genuine sequence on the page, so it is numbered. */}
+      {/* Act 3 is the one genuine sequence on the page, so it is numbered. */}
       <ol className="mt-14 grid gap-x-10 gap-y-12 md:grid-cols-2">
         {approach.steps.map((s, i) => (
-          <li key={s.title} className="grid grid-cols-lead gap-x-5">
+          <li key={s.title} className="grid min-w-0 grid-cols-lead gap-x-5">
             <span className="num text-h3 leading-none text-ink-soft" aria-hidden="true">
               {String(i + 1).padStart(2, '0')}
             </span>
-            <div>
-              <h3 className="text-h3">{s.title}</h3>
-              <p className="mt-3 max-w-narrow text-body text-ink-soft">{tpl(s.body, vars)}</p>
+            <div className="min-w-0">
+              <h3 className="text-small font-semibold text-ink-soft">{s.title}</h3>
+              <ClaimBlock claim={STEP_CLAIMS[i]} className="mt-2" />
             </div>
           </li>
         ))}

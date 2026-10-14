@@ -1,41 +1,42 @@
 import { hero } from '../data/content'
-import { gaugeName, gauges, pulsesAt, peakIntensity, roleText } from '../lib/graph'
+import { stormEvent } from '../data/network'
+import { lagHours, peakOf, rainPeakHour, stormGauges, upstreamRain } from '../lib/storm'
 import { fmt } from '../lib/format'
 
-/** Static equivalent of the hero scene: when and how strongly each pulse reaches each gauge. */
+/** Static equivalent of the hero scene: the storm at each gauge, as a table. */
 export function HeroGaugeTable() {
+  if (!stormEvent) return null
+  const rainTotal = upstreamRain.reduce((a, b) => a + b, 0)
   return (
     <details className="mt-3 text-small text-foam-soft">
-      <summary className="cursor-pointer select-none text-foam-soft hover:text-foam">
-        Read the wave as a table
-      </summary>
+      <summary className="cursor-pointer select-none text-foam-soft hover:text-foam">{hero.tableToggle}</summary>
       <table className="mt-3 w-full max-w-panel text-left">
-        <caption className="pb-2 text-left text-micro">{hero.tableSummary}</caption>
+        <caption className="pb-2 text-left text-micro">
+          {hero.tableCaption} Rain on the headwaters: <span className="num">{fmt(rainTotal, 0)} mm</span> in total, heaviest at hour{' '}
+          <span className="num">{rainPeakHour}</span>; the outlet peaked <span className="num">{lagHours} h</span> later.
+        </caption>
         <thead>
           <tr className="border-b-hair border-abyss-line text-micro">
             <th scope="col" className="py-1 pr-3 font-normal">Gauge</th>
-            <th scope="col" className="py-1 pr-3 font-normal">From</th>
-            <th scope="col" className="py-1 pr-3 text-right font-normal">Peak at</th>
-            <th scope="col" className="py-1 text-right font-normal">Relative height</th>
+            <th scope="col" className="py-1 pr-3 text-right font-normal">Depth at hour 0</th>
+            <th scope="col" className="py-1 pr-3 text-right font-normal">Peak depth</th>
+            <th scope="col" className="py-1 text-right font-normal">Peak at hour</th>
           </tr>
         </thead>
         <tbody>
-          {gauges.flatMap((g) =>
-            pulsesAt.get(g.id)!.map((p, i) => (
-              <tr key={g.id + p.head} className="border-b-hair border-abyss-line">
+          {stormGauges.map((g) => {
+            const p = peakOf(g.id)
+            return (
+              <tr key={g.id} className="border-b-hair border-abyss-line">
                 <th scope="row" className="py-1 pr-3 font-normal text-foam">
-                  {i === 0 ? (
-                    <>
-                      <span className="num">{gaugeName.get(g.id)}</span> {roleText(g.gaugeRole)}
-                    </>
-                  ) : null}
+                  <span className="num">{g.name}</span> {g.role}
                 </th>
-                <td className="num py-1 pr-3">{p.head.split('_').slice(-2).join(' ')}</td>
-                <td className="num py-1 pr-3 text-right">t+{fmt(p.arrival, 1)} h</td>
-                <td className="num py-1 text-right">{fmt(peakIntensity(p), 2)}</td>
+                <td className="num py-1 pr-3 text-right">{fmt(stormEvent!.nodes[g.id].depthM[0], 2)} m</td>
+                <td className="num py-1 pr-3 text-right">{fmt(p.depthM, 2)} m</td>
+                <td className="num py-1 text-right">{p.hour}</td>
               </tr>
-            )),
-          )}
+            )
+          })}
         </tbody>
       </table>
     </details>

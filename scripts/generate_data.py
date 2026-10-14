@@ -480,13 +480,12 @@ def route_event_through(net, head_series, hours):
 # ------------------------------------------------------------ storm events
 
 def extract_events(repo, net):
-    """Real timeseries: one event, recorded at two main-stem gauges, plus a
-    36-hour model window (24 h seen + 12 h forecast) for every node."""
+    """Real timeseries for every node of the basin: discharge, precipitation,
+    water depth and velocity, hour by hour."""
     path = os.path.join(repo, "flood_routing_dataset", "timeseries.csv")
     basin = net["basinId"]
-    ids = [n["id"] for n in net["nodes"]]
     series = defaultdict(list)
-    rain = defaultdict(list)
+    rec = {"rain": defaultdict(list), "depth": defaultdict(list), "velocity": defaultdict(list)}
     with open(path, newline="", encoding="utf-8") as fh:
         rd = csv.reader(fh)
         h = next(rd)
@@ -494,9 +493,81 @@ def extract_events(repo, net):
         for row in rd:
             if row[ix["basin_id"]] != basin:
                 continue
-            series[row[ix["node_id"]]].append(float(row[ix["discharge_m3s"]]))
-            rain[row[ix["node_id"]]].append(float(row[ix["precipitation_mm"]]))
-    return series, rain
+            nid = row[ix["node_id"]]
+            series[nid].append(float(row[ix["discharge_m3s"]]))
+            rec["rain"][nid].append(float(row[ix["precipitation_mm"]]))
+            rec["depth"][nid].append(float(row[ix["water_depth_m"]]))
+            rec["velocity"][nid].append(float(row[ix["velocity_ms"]]))
+    return series, rec
+
+
+STORM_LEAD_H = 12      # hours shown before the rain starts
+STORM_HOURS = 140      # hours shown in total
+STORM_DRY_AFTER = 80   # hours after the storm ends before the next one may start, so its response is not mixed with the next
+
+
+def pick_storm(net, series, rec):
+    """The hero's storm: a real event from the record, chosen by rule.
+
+    Storms are runs of hours with basin rain above a threshold. Eligible storms
+    put at least half their rain on the four highest main-stem cross-sections
+    (upstream-dominated) and are followed by STORM_DRY_AFTER hours before the
+    next storm. Of those, the one with the most upstream rain is shown.
+    """
+    ids = [n["id"] for n in net["nodes"]]
+    main = sorted((n for n in net["nodes"] if n["branch"] == "main"), key=lambda n: n["pathPosition"])
+    up_ids = [n["id"] for n in main[:4]]
+    rain = rec["rain"]
+    T = len(rain[ids[0]])
+    tot = [sum(rain[i][t] for i in ids) for t in range(T)]
+    upr = [sum(rain[i][t] for i in up_ids) for t in range(T)]
+    storms, t = [], 0
+    while t < T:
+        if tot[t] > 2.0:
+            s = t
+            while t < T and tot[t] > 0.5:
+                t += 1
+            storms.append((s, t))
+        t += 1
+    best = None
+    for k, (s, e) in enumerate(storms):
+        nxt = storms[k + 1][0] if k + 1 < len(storms) else T
+        U, A = sum(upr[s:e]), sum(tot[s:e])
+        if A <= 0 or U / A < 0.5 or nxt - e < STORM_DRY_AFTER or s - STORM_LEAD_H < 0 or s - STORM_LEAD_H + STORM_HOURS > T:
+            continue
+        if best is None or U > best[2]:
+            best = (s, e, U)
+    if best is None:
+        return None
+    lo = best[0] - STORM_LEAD_H
+    hi = lo + STORM_HOURS
+    gauges = sorted((n for n in net["nodes"] if n["gauged"]), key=lambda n: n["pathPosition"] + (0 if n["branch"] == "main" else 0.001))
+    outlet = main[-1]["id"]
+    gauge_set = {g["id"] for g in gauges}
+    basin_rain = [r(sum(rain[i][t] for i in ids) / len(ids), 3) for t in range(lo, hi)]
+    up_rain = [sum(rain[i][t] for i in up_ids) / len(up_ids) for t in range(lo, hi)]
+    rain_peak = max(range(len(up_rain)), key=lambda k: up_rain[k])
+    out_depth = rec["depth"][outlet][lo:hi]
+    out_peak = max(range(len(out_depth)), key=lambda k: out_depth[k])
+    return {
+        "recordStartHour": lo,
+        "hours": STORM_HOURS,
+        "rule": f"largest upstream-dominated storm in {net['basinId']} followed by {STORM_DRY_AFTER} h without another storm",
+        "upstreamIds": up_ids,
+        "outletId": outlet,
+        "gaugeIds": [g["id"] for g in gauges],
+        "basinRainMm": basin_rain,
+        "upstreamRainPeakHour": rain_peak,
+        "outletPeakHour": out_peak,
+        "lagHours": out_peak - rain_peak,
+        # Discharge only where a gauge would read it; depth, rain and velocity everywhere.
+        "nodes": {nid: {
+            "rainMm": [r(v, 2) for v in rain[nid][lo:hi]],
+            "depthM": [r(v, 3) for v in rec["depth"][nid][lo:hi]],
+            "velocityMs": [r(v, 2) for v in rec["velocity"][nid][lo:hi]],
+            **({"dischargeM3s": [r(v, 2) for v in series[nid][lo:hi]]} if nid in gauge_set else {}),
+        } for nid in ids},
+    }
 
 
 def pick_event(net, series):
@@ -1323,6 +1394,23 @@ export type ProblemHydrograph = {
   routedUpstreamOnly: number[]
 }
 
+/** One real storm from the record, every cross-section, hour by hour (hero). */
+export type StormEvent = {
+  recordStartHour: number
+  hours: number
+  rule: string
+  upstreamIds: string[]
+  outletId: string
+  gaugeIds: string[]
+  /** basin-mean precipitation, mm per hour */
+  basinRainMm: number[]
+  upstreamRainPeakHour: number
+  outletPeakHour: number
+  lagHours: number
+  /** dischargeM3s only at gauged cross-sections */
+  nodes: Record<string, { rainMm: number[]; depthM: number[]; velocityMs: number[]; dischargeM3s?: number[] }>
+}
+
 export type ModelWindow = {
   originIndex: number
   inputSteps: number
@@ -1477,8 +1565,10 @@ def main():
         sync_provenance(repo)
         net = build_network_from_thesis(repo, args.basin)
         source = "thesis repository" + (f" @ {git_head(repo)[:7]}" if git_head(repo) else "")
+        storm = None
         if os.path.exists(os.path.join(ds, "timeseries.csv")):
-            series, _ = extract_events(repo, net)
+            series, rec = extract_events(repo, net)
+            storm = pick_storm(net, series, rec)
         else:
             series = synth_event(net)
     else:
@@ -1487,6 +1577,7 @@ def main():
         net = build_network_from_spec()
         source = "brief §6.1 seeded spec"
         series = synth_event(net)
+        storm = None
 
     up, down, i0 = pick_event(net, series)
     hydro = problem_hydrograph(net, series, up, down, i0)
@@ -1504,7 +1595,8 @@ def main():
     body += f"export const basins: BasinSummary[] = {ts_literal(net['basins'])}\n\n"
     body += f"export const attention: AttentionExport = {ts_literal(attention)}\n\n"
     body += f"export const problemHydrograph: ProblemHydrograph = {ts_literal(hydro)}\n\n"
-    body += f"export const modelWindow: ModelWindow = {ts_literal(window)}\n"
+    body += f"export const modelWindow: ModelWindow = {ts_literal(window)}\n\n"
+    body += f"export const stormEvent: StormEvent | null = {json.dumps(storm, ensure_ascii=False, separators=(',', ':'))}\n"
     write_ts(os.path.join(OUT_DIR, "network.ts"), HEADER.format(when=when, mode=mode, source=source), body)
     print(f"[generate_data] mode={mode} nodes={len(net['nodes'])} edges={len(net['edges'])} "
           f"attention={'yes' if attention else 'no'}")

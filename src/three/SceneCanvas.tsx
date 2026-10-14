@@ -1,4 +1,4 @@
-import { Canvas, useThree, type CanvasProps } from '@react-three/fiber'
+import { Canvas, useFrame, useThree, type CanvasProps } from '@react-three/fiber'
 import { PerformanceMonitor } from '@react-three/drei'
 import {
   Component,
@@ -19,6 +19,22 @@ class Boundary extends Component<{ fallback: ReactNode; children: ReactNode }, {
   render() {
     return this.state.failed ? this.props.fallback : this.props.children
   }
+}
+
+/*
+  ?debug=frames counts rendered frames per canvas in window.__frames, so the
+  pause-when-offscreen behaviour can be checked in a real browser rather than
+  assumed.
+*/
+const countFrames = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === 'frames'
+
+function FrameCounter({ name }: { name: string }) {
+  useFrame(() => {
+    const w = window as Window & { __frames?: Record<string, number> }
+    w.__frames ??= {}
+    w.__frames[name] = (w.__frames[name] ?? 0) + 1
+  })
+  return null
 }
 
 /** Demand-mode canvases draw nothing until asked; ask whenever one comes into view. */
@@ -149,6 +165,7 @@ export function SceneCanvas({
             flipflops={3}
           />
           <DrawOnVisible visible={visible && compiled} />
+          {countFrames && <FrameCounter name={name} />}
           {children}
           <Warmup onReady={markCompiled} />
         </Canvas>

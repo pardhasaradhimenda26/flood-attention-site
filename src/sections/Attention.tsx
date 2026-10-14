@@ -3,6 +3,9 @@ import { attention } from '../data/network'
 import { attentionCopy, tpl } from '../data/content'
 import { Section } from '../components/Section'
 import { SectionHead } from '../components/SectionHead'
+import { Rich } from '../components/Rich'
+import { ClaimBlock } from '../components/ClaimBlock'
+import { claims } from '../data/claims'
 import { LazyMount } from '../components/LazyMount'
 import { AttentionPanel } from '../components/AttentionPanel'
 import { ForecastWindow } from '../components/ForecastWindow'
@@ -154,10 +157,11 @@ export function Attention() {
       <SectionHead section="attention" id="attention-h">
         {attentionCopy.heading}
       </SectionHead>
+      <ClaimBlock claim={claims.junction} size="h3" className="mb-10" />
       <div className="grid gap-x-12 gap-y-5 lg:grid-cols-2">
         {attentionCopy.paragraphs.map((p, i) => (
           <p key={i} className={`max-w-measure text-body ${i === 2 ? 'text-foam lg:col-span-2' : 'text-foam-soft'}`}>
-            {tpl(p, vars)}
+            <Rich text={p} vars={vars} />
           </p>
         ))}
         {!hasAttention && <p className="pending-hatch p-3 text-small text-foam-soft lg:col-span-2">{attentionCopy.pendingLearned}</p>}
