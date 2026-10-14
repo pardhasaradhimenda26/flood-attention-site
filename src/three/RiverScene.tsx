@@ -589,13 +589,19 @@ function CameraRig({ q }: { q: Quality }) {
     const cam = camera as PerspectiveCamera
     const aspect = size.width / Math.max(1, size.height)
     const portrait = aspect < 1
+    // From the lg breakpoint the scene fills the hero behind the headline
+    // column and above the timeline; below it the scene has its own box.
+    const overlay = typeof window !== 'undefined' && window.innerWidth >= 1100
     const coupled = q.scrollCamera && !reduced
     const scrollP = coupled ? MathUtils.clamp(scrollState.p, 0, 1) : 0
     const p = MathUtils.clamp(scrollP * 0.8, 0, 1)
     const target = T0.clone().lerp(T1, p)
-    if (portrait) target.set(1.2 + p * 3, 0.9, 0.3)
+    if (!overlay) target.set(0.4 + p * 2, 0.9, 0.2)
 
-    const radius = portrait ? Math.min(60, 32 / Math.max(0.45, aspect)) : 40 - Math.min(aspect, 2.2) * 2
+    // In its own box, back off until the 24-unit valley fits the width.
+    const halfH = Math.tan(MathUtils.degToRad(15))
+    const fit = 12.5 / (halfH * Math.max(0.5, aspect)) + 4
+    const radius = overlay ? 40 - Math.min(aspect, 2.2) * 2 : Math.min(70, fit)
     const az = (portrait ? 1.42 : 1.02) + drag.current.az - p * 0.25
     const pol = (portrait ? 0.7 : 1.05) + drag.current.pol - p * 0.08
     const desired = new Vector3(
@@ -610,9 +616,9 @@ function CameraRig({ q }: { q: Quality }) {
     cam.lookAt(cur.current.target)
     // On wide screens shift the projection so the valley sits right of the
     // headline column instead of under it.
-    const shift = aspect > 1.25 ? Math.round(size.width * Math.min(0.22, (aspect - 1.05) * 0.3)) : 0
+    const shift = overlay && aspect > 1.25 ? Math.round(size.width * Math.min(0.22, (aspect - 1.05) * 0.3)) : 0
     // and above the storm timeline along the bottom.
-    const lift = aspect > 1.25 ? Math.round(size.height * 0.15) : 0
+    const lift = overlay && aspect > 1.25 ? Math.round(size.height * 0.15) : 0
     const view = cam.view
     if (shift && (!view || view.offsetX !== -shift || view.fullWidth !== size.width || view.fullHeight !== size.height)) {
       cam.setViewOffset(size.width, size.height, -shift, lift, size.width, size.height)
