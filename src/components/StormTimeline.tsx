@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { scaleLinear } from 'd3-scale'
 import { line } from 'd3-shape'
-import { stormEvent } from '../data/network'
+import { stormEvent } from '../data/storm'
 import { hero } from '../data/content'
 import { useSite } from '../state'
 import { useMeasure } from '../lib/useMeasure'
 import { fmt } from '../lib/format'
 import {
   depthAt,
+  holdHour,
   lagHours,
   lastHour,
   outletId,
@@ -41,6 +42,11 @@ export function StormTimeline({ drive = false }: { drive?: boolean }) {
   const [said, setSaid] = useState('')
   const touched = useRef(false)
   const lastSaid = useRef(0)
+
+  // Reduced motion holds the storm where the river carries the most water.
+  useEffect(() => {
+    if (reduced) useSite.getState().setHeroTime(holdHour)
+  }, [reduced])
 
   // Without WebGL there is no scene to own the clock; run it here.
   useEffect(() => {

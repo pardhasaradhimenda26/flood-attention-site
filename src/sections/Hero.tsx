@@ -2,11 +2,10 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { hero, site } from '../data/content'
 import { NetworkPlan } from '../components/NetworkPlan'
 import { hasWebGL } from '../three/useAdaptiveQuality'
-import { HeroGaugeTable } from '../components/HeroGaugeTable'
-import { StormTimeline } from '../components/StormTimeline'
-import { sceneLabel } from '../lib/storm'
 
 const RiverScene = lazy(() => import('../three/RiverScene'))
+// The storm data loads with the timeline, after the headline has painted.
+const HeroTimeline = lazy(() => import('../components/HeroTimeline'))
 
 /*
   Act 1. No jargon: the headline, the valley, one question, and the storm
@@ -46,7 +45,7 @@ export function Hero() {
             <NetworkPlan mode="wave" still className="h-full w-full opacity-30 lg:ml-auto lg:w-3/5 lg:py-16" />
           )
         ) : (
-          <div role="img" aria-label={sceneLabel} className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16">
+          <div role="img" aria-label={hero.fallbackLabel} className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16">
             <NetworkPlan mode="wave" className="h-full w-full" />
           </div>
         )}
@@ -65,9 +64,10 @@ export function Hero() {
             <span className="text-foam-soft"> — {site.degree}, {site.institution}</span>
           </p>
         </div>
-        <div className="pointer-events-auto border-t-hair border-abyss-line bg-abyss px-gutter pb-5 pt-4 sm:px-8 lg:pl-6 lg:pr-8">
-          <StormTimeline drive={gl === false} />
-          <HeroGaugeTable />
+        <div className="pointer-events-auto min-h-timeline border-t-hair border-abyss-line bg-abyss px-gutter pb-5 pt-4 sm:px-8 lg:pl-6 lg:pr-8">
+          <Suspense fallback={null}>
+            <HeroTimeline drive={gl === false} />
+          </Suspense>
         </div>
       </div>
     </header>

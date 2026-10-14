@@ -48,8 +48,8 @@ import { fmt } from '../lib/format'
 */
 
 const N = nodes.length
-/** Storm hours per real second on the first pass (140 h in about 14 s). */
-const HOURS_PER_SEC = 10
+/** Storm hours per real second on the first pass (140 h in under 12 s). */
+const HOURS_PER_SEC = 12
 
 /* ------------------------------------------------------------ valley grid */
 
@@ -731,13 +731,15 @@ function Scene() {
 
 export default function RiverScene() {
   const reduced = useSite((s) => s.reducedMotion)
+  const playing = useSite((s) => s.heroPlaying)
   return (
     <div className="absolute inset-0">
       <SceneCanvas
         name="hero"
         className="absolute inset-0"
-        // Water keeps moving while the hero is on screen; reduced motion draws on demand only.
-        frameloop={reduced ? 'demand' : 'always'}
+        // One orchestrated moment: the storm's first pass. After it, the scene
+        // redraws only when the reader drags the storm or the camera.
+        frameloop={playing && !reduced ? 'always' : 'demand'}
         camera={{ fov: 30, near: 0.5, far: 120, position: [-16, 10, 14] }}
         touchAction="pan-y"
         wrapperProps={{ role: 'img', 'aria-label': sceneLabel }}

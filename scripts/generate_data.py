@@ -1394,6 +1394,16 @@ export type ProblemHydrograph = {
   routedUpstreamOnly: number[]
 }
 
+export type ModelWindow = {
+  originIndex: number
+  inputSteps: number
+  rolloutSteps: number
+  series: Record<string, number[]>
+}
+"""
+
+
+STORM_TYPES = """
 /** One real storm from the record, every cross-section, hour by hour (hero). */
 export type StormEvent = {
   recordStartHour: number
@@ -1411,14 +1421,7 @@ export type StormEvent = {
   nodes: Record<string, { rainMm: number[]; depthM: number[]; velocityMs: number[]; dischargeM3s?: number[] }>
 }
 
-export type ModelWindow = {
-  originIndex: number
-  inputSteps: number
-  rolloutSteps: number
-  series: Record<string, number[]>
-}
 """
-
 
 RESULTS_TYPES = """
 /** verified: measured and reproducible from provenance/. qualified: measured, with a
@@ -1595,9 +1598,13 @@ def main():
     body += f"export const basins: BasinSummary[] = {ts_literal(net['basins'])}\n\n"
     body += f"export const attention: AttentionExport = {ts_literal(attention)}\n\n"
     body += f"export const problemHydrograph: ProblemHydrograph = {ts_literal(hydro)}\n\n"
-    body += f"export const modelWindow: ModelWindow = {ts_literal(window)}\n\n"
-    body += f"export const stormEvent: StormEvent | null = {json.dumps(storm, ensure_ascii=False, separators=(',', ':'))}\n"
+    body += f"export const modelWindow: ModelWindow = {ts_literal(window)}\n"
     write_ts(os.path.join(OUT_DIR, "network.ts"), HEADER.format(when=when, mode=mode, source=source), body)
+    # The hero storm is its own module so it loads with the hero's lazy chunks,
+    # not with the first paint.
+    storm_json = json.dumps(storm, ensure_ascii=False, separators=(",", ":"))
+    storm_body = STORM_TYPES + f"\nexport const stormEvent: StormEvent | null = {storm_json}\n"
+    write_ts(os.path.join(OUT_DIR, "storm.ts"), HEADER.format(when=when, mode=mode, source=source), storm_body)
     print(f"[generate_data] mode={mode} nodes={len(net['nodes'])} edges={len(net['edges'])} "
           f"attention={'yes' if attention else 'no'}")
 

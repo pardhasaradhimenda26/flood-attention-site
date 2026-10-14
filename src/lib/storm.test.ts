@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { nodes, stormEvent } from '../data/network'
+import { nodes } from '../data/network'
+import { stormEvent } from '../data/storm'
 import { STAGE_SCALE, depthAt, lagHours, outletId, outletPeakHour, rainPeakHour, stormHours, upstreamRain } from './storm'
 import { BANK_H, channelAt, terrainHeight, thalwegAt } from './terrain'
 

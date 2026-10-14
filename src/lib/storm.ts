@@ -1,4 +1,5 @@
-import { nodes, stormEvent } from '../data/network'
+import { nodes } from '../data/network'
+import { stormEvent } from '../data/storm'
 import { gaugeName } from './graph'
 import { hero, tpl } from '../data/content'
 

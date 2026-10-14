@@ -1,5 +1,5 @@
 import { hero } from '../data/content'
-import { stormEvent } from '../data/network'
+import { stormEvent } from '../data/storm'
 import { lagHours, peakOf, rainPeakHour, stormGauges, upstreamRain } from '../lib/storm'
 import { fmt } from '../lib/format'
 

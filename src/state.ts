@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import { confluence } from './lib/graph'
-import { holdHour } from './lib/storm'
 
 export type AggMode = 'uniform' | 'learned'
 
@@ -52,7 +51,9 @@ export const useSite = create<SiteState>((set, get) => ({
   reducedMotion: prefersReduced,
   setReducedMotion: (v) => set({ reducedMotion: v }),
 
-  heroTime: prefersReduced ? holdHour : heldHour ?? 0,
+  // Under reduced motion the storm clock (RiverScene, or StormTimeline without
+  // WebGL) moves this to the hold hour as soon as the storm data loads.
+  heroTime: heldHour ?? 0,
   heroPlaying: !prefersReduced && heldHour == null,
   heroSettled: prefersReduced || heldHour != null,
   heroSeekTo: null,

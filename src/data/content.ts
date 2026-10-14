@@ -26,6 +26,8 @@ export const hero = {
     'Four places on this river have a sensor that records how high the water is. Everywhere else, nobody knows. This project teaches a computer to estimate the water at those other places, from the four sensors and from what happened upstream.',
   sceneLabel:
     'A river valley seen from downstream, during one real storm from the project’s data. Rain falls first on the hills at the top of the valley. Within hours the water rises there and spreads over the low ground beside the river. About {lag} hours after the heaviest rain the rise reaches the bottom of the valley. Four gauge towers stand by the river and show the depth they measure; the other {ungauged} marked places across the river have no reading. Water depth is exaggerated so it can be seen.',
+  fallbackLabel:
+    'Plan view of synthetic basin 01: a main stem and two tributaries. A flood pulse released at the headwaters runs down each reach and reaches each cross-section after the summed travel time of the reaches above it. Four gauged cross-sections are marked.',
   timelineLabel: 'Storm hour',
   replay: 'Replay the storm',
   frozen: 'Reduced motion: held at the hour the river carries the most water.',

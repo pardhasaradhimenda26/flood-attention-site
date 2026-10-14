@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { verdict } from '../data/content'
-import { sceneLabel } from '../lib/storm'
+import { hero, verdict } from '../data/content'
 
 // The WebGL probe answers "no", as it does on a machine without WebGL.
 vi.mock('../three/useAdaptiveQuality', async (orig) => {
@@ -13,7 +12,7 @@ describe('WebGL fallback', () => {
   it('mounts the static network plan, with real content, when WebGL is unavailable', async () => {
     const { Hero } = await import('./Hero')
     render(<Hero />)
-    const img = await screen.findByRole('img', { name: sceneLabel }, { timeout: 3000 })
+    const img = await screen.findByRole('img', { name: hero.fallbackLabel }, { timeout: 3000 })
     // the plan draws the actual network: one path per routing reach at least
     expect(img.querySelectorAll('path, line, circle').length).toBeGreaterThan(10)
   })

@@ -90,6 +90,8 @@ export default {
         hero: '40rem',
         // a full screen, but never less than the hero's content needs
         heroFit: 'max(100svh, 40rem)',
+        // the storm timeline's height, reserved so the hero does not shift when it loads
+        timeline: '15.5rem',
       },
       minWidth: {
         'figure-sm': '40rem',
