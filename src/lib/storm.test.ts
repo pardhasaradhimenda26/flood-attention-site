@@ -70,6 +70,9 @@ describe('the hero flood (Wayanad HEC-RAS 2D, event T1)', () => {
     expect(hero.scaleNote).toMatch(/CC BY 4\.0/)
     expect(hero.scaleNote).toMatch(/OpenStreetMap contributors/)
     expect(hero.scaleNote).toMatch(/not yet validated/)
+    // The model has no rainfall: the rain must be labelled as illustrative.
+    expect(hero.scaleNote).toMatch(/rain is illustrative/i)
+    expect(hero.scaleNote).toMatch(/has no rainfall/)
   })
 
   it('finds points along the river between sections, for the camera flight', () => {

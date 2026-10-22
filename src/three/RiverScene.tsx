@@ -37,6 +37,8 @@ import {
 import { readToken } from '../lib/tokens'
 import { viewMarkers } from '../lib/viewMarker'
 import { Locator } from '../components/Locator'
+import { FlowTracers, type Grid } from './FlowTracers'
+import { Rain } from './Rain'
 import { buildValleyArrays, type ValleyArrays, type ValleyParams } from './valleyBuild'
 import { useSite } from '../state'
 import { FloodVideo } from '../components/FloodVideo'
@@ -286,7 +288,7 @@ function waterMaterial(q: Quality, uTime: { value: number }) {
         const float e = 0.08;
         return vec2(noise(p + vec2(e, 0.0)) - noise(p - vec2(e, 0.0)), noise(p + vec2(0.0, e)) - noise(p - vec2(0.0, e))) / (2.0 * e);
       }
-      const float PERIOD = 2.5;   // seconds per flow-map cycle
+      const float PERIOD = 1.2;   // seconds per flow-map cycle
       const float SCALE = 30.0;   // pattern units per km: ripples about 35 m across
       void main() {
         // Under 3 cm of modelled depth counts as dry.
@@ -803,11 +805,29 @@ function FlowTicker({ on }: { on: boolean }) {
 
 /* ----------------------------------------------------------------- scene */
 
+/** Flow tracers and raindrops per device tier. */
+const TRACERS = { low: 1500, medium: 3000, high: 6000 } as const
+const RAIN = { low: 1500, medium: 4000, high: 8000 } as const
+
 function Scene({ d, q }: { d: Data; q: Quality }) {
   const playing = useSite((s) => s.heroPlaying)
   const reduced = useSite((s) => s.reducedMotion)
   const built = useMemo(() => buildValley(d.a), [d])
   const ground = d.a.ground
+  const grid: Grid = useMemo(
+    () => ({
+      water: built.water,
+      waterOf: d.a.waterOf,
+      vx: d.a.vx,
+      vy: d.a.vy,
+      stepKm: cellKm * d.a.stride * KM,
+      halfX: cx * KM,
+      halfZ: cz * KM,
+      vexPerM: VEX / 1000,
+      advect: (FLOW_SPEEDUP / 1000) * KM,
+    }),
+    [built, d],
+  )
   const uTime = useMemo(() => ({ value: 0 }), [])
   const img = useMemo(() => {
     if (!d.img) return null
@@ -844,6 +864,8 @@ function Scene({ d, q }: { d: Data; q: Quality }) {
       <FloodClock d={d} built={built} uTime={uTime} />
       <CameraRig q={q} ground={ground} />
       <FlowTicker on={!playing && !reduced} />
+      <FlowTracers grid={grid} count={TRACERS[q.tier]} running={!reduced} />
+      <Rain count={RAIN[q.tier]} running={!reduced} />
     </>
   )
 }

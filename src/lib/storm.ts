@@ -157,11 +157,11 @@ export function dateAt(t: number): string {
 }
 
 /**
- * The hero's water surface moves with the model's velocity, sped up this many
- * times (at 1:1 a 2 m/s current takes seconds to cross a screen pixel). The
- * scale note says so.
+ * The hero's water surface and its flow tracers move with the model's
+ * velocity, sped up this many times (at 1:1 a 2 m/s current takes seconds to
+ * cross a screen pixel). The scale note says so.
  */
-export const FLOW_SPEEDUP = 100
+export const FLOW_SPEEDUP = 300
 
 /** Length of the modelled reach along its centreline, km. */
 export const reachKm = ordered.length ? ordered[ordered.length - 1].s_m / 1000 : 0

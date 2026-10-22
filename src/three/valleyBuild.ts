@@ -37,6 +37,14 @@ export type ValleyArrays = {
   /** Each water vertex's index in the wet-cell list, or −1. */
   waterWet: Int32Array
   waterIndex: Uint32Array
+  /**
+   * For each vertex of the (strided) grid, its water vertex or −1: lets the
+   * flow tracers read depth and velocity at any point on the water.
+   */
+  waterOf: Int32Array
+  /** Vertices across and down the strided grid. */
+  vx: number
+  vy: number
   stride: number
 }
 
@@ -215,11 +223,16 @@ export function buildValleyArrays(bed: Float32Array, wetCells: Uint32Array, p: V
     waterPosition,
     waterWet,
     waterIndex,
+    waterOf: remap,
+    vx: nx,
+    vy: ny,
     stride,
   }
 }
 
 /** The buffers to transfer out of the worker. */
 export function transferables(a: ValleyArrays): ArrayBuffer[] {
-  return [a.ground, a.position, a.normal, a.inside, a.terrainIndex, a.waterPosition, a.waterWet, a.waterIndex].map((x) => x.buffer as ArrayBuffer)
+  return [a.ground, a.position, a.normal, a.inside, a.terrainIndex, a.waterPosition, a.waterWet, a.waterIndex, a.waterOf].map(
+    (x) => x.buffer as ArrayBuffer,
+  )
 }

@@ -98,6 +98,11 @@ Feedback on the first version: the flood animation did not look like water, and 
   - The water surface is a flow map. Its ripple pattern is advected by each point's interpolated velocity, sped up 100 times; the scale note says so.
   - Faster water is rougher and breaks white, in streaks drawn out along the current.
   - Height is still bed plus modelled depth. Nothing about the water is invented.
+- **Flow tracers.** Foam streaks (6,000 / 3,000 / 1,500 by device tier) carry the current visibly at every scale.
+  - Each reads depth and velocity bilinearly from the water mesh, which holds the model's interpolated frames, and moves with that velocity.
+  - Streaks are born on water at least 30 cm deep, more often where it runs fast, and fade within a few seconds or when the water under them dries. So they race along the channel and drift over the floodplain, as the model's velocities do.
+  - The speed-up (now 300 times, shared with the ripples) is stated in the scale note.
+- **Rain, labelled illustrative.** The model has no rainfall (its rain input is zero), and all its water enters at the upstream boundary. The August 2018 floods followed extreme monsoon rain, so the hero shows rain falling, and the scale note says the rain is illustrative; a test pins that wording. The rain runs entirely on the GPU, and reduced motion turns off both the rain and the tracers.
 - **Floodwater colour.** The water is silt-brown, darker where deeper, with sky reflection and sun glint. These are new tokens `silt-1..3`, used by the hero's water only; every chart keeps the blue depth ramp. Shallow sheet flow is translucent over the ground.
 - **The real place underneath.** The ground is EOX "Sentinel-2 cloudless 2016" (CC BY 4.0; the later yearly mosaics are non-commercial). `data/export_wayanad_imagery.py` warps it onto the model's UTM 43N grid at 12.5 m.
   - Every output pixel's centre is converted to latitude and longitude and sampled bilinearly. The download's sha256, the request, the retrieval date and the licence are in `public/wayanad/imagery.json`.
