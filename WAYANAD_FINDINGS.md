@@ -90,9 +90,38 @@ All from the run above, intervals from a clustered bootstrap resampling held-out
 - **Fallback video:** `public/wayanad/inundation_T1.mp4`, the whole month on the 25 m grid with a caption, date and depth scale burned in (1406×1280, 24 fps, 0.9 MB, H.264). It is the hero's no-WebGL fallback and reusable by the Taiwan team.
 - **Provenance:** `provenance/wayanad/` holds the extracted `nodes.csv`, `edges.csv` (with both measured travel-time columns), `timeseries.csv`, `basins.csv`, `checks.json`, `arrival.csv`, `centreline.csv` and the information-test log; `provenance/runs/<run>/` holds the run outputs. `MANIFEST.json` records the archive's sha256, the extraction scripts' hashes and the site assets' hashes. `npm run regen-data` rebuilds `results.ts` identically.
 
+## Performance and live verification (22 October 2026)
+
+The Wayanad hero first shipped below the brief's budget (Lighthouse mobile Performance 78–89). Fixes, each verified before it shipped:
+
+- **No image before the WebGL probe.** The hero showed `plan.png` at 30% while the WebGL probe ran. That image could become the page's largest paint and only arrive after the JavaScript. The largest paint is now the hero lede (0.75 s on a 4×-throttled CPU).
+- **Scene loads after the first contentful paint.** The scene used to start in the first idle slot. When a run's first frame reached the screen late, three.js was already on the headline's critical path (simulated LCP 4.2 s). It now waits for the `first-contentful-paint` entry, with a 4 s timeout where paint timing is unsupported.
+- **Valley built in a worker** (`src/three/valley.worker.ts`, `valleyBuild.ts`). The fill, smoothing, index and normal computation on the 351 × 320 grid was one 1.6 s main-thread task on a throttled phone. The worker also fetches the model output and transfers the buffers. Renders are pixel-identical (maximum per-pixel difference 0 against the previous build).
+- **Compact water mesh.** The per-frame depth update looped over and re-uploaded all 112,320 grid vertices. The water now has its own mesh of the 16,291 vertices of quads that are ever wet. Flood-clock time during load fell from 374 ms to 27 ms. Renders are pixel-identical.
+- **Every second cell below the high tier.** Phones land on the medium tier, where the full grid is denser than the pixels it covers.
+- **Gauge boards on phones.** At 412 px the four boards covered each other and hid G2's discharge. Below 640 px they show name and depth only, and every second board hangs below its tower. The gauge table carries discharge.
+
+**Measurements.** All are Lighthouse 12.2.1, mobile, simulated throttling, from this machine.
+
+| Build | Where | Runs | Performance | LCP | TBT |
+|---|---|---|---|---|---|
+| Pre-Wayanad (`1832008`) | local `vite preview` | 5, alternating | median 91 (88–94) | 2.33 s | 318 ms |
+| Final | local `vite preview` | 5, alternating | median 97 (95–98) | 2.32 s | 48 ms |
+| Final | https://flood-attention-site.vercel.app/ | 5 | median 79 (71–83) | 2.28 s | 827 ms |
+
+Accessibility is 100 and CLS 0 in every run.
+
+Under identical local conditions the final build beats the pre-Wayanad build. Live runs from this machine vary widely between identical runs (70–93 across sessions). Most of the variance is in tasks outside the page's code: Lighthouse's own evaluation tasks of up to 310 ms, and unattributable browser work. **The ≥ 85 budget is therefore not confirmed on the live site.** PageSpeed Insights, which runs on Google's servers, could not be used: its daily keyless quota was exhausted. Run it once from https://pagespeed.web.dev/ to settle this.
+
+**Live checks on the final build, both hosts:**
+- No console errors or warnings, and no failed requests.
+- The hero draws about 60 frames/s on screen, 0 offscreen, and resumes on return (checked with `?debug=frames`).
+- At 320 px the page width equals the viewport. Every SVG that extends past it sits inside an `overflow: hidden` container.
+
 ## Not done, and why
 
 - **Physical phone test:** not possible from this session. Emulated viewports only. Do it before the 27 October meeting.
 - **25–40 sections:** see above. Hourly output plus the one-step rule allow at most ~10, and the celerity check brought it to 7.
 - **Static files, face flows, land-cover Manning:** not delivered. Recovered or fallen back as recorded above. Ask the Taiwan team for the static archive.
 - **Validation against observations:** pending, as the supplier's README says.
+- **Lighthouse ≥ 85 on the live site:** not confirmed from this machine (median 79, above). The same build scores 97 locally, against 91 for the pre-Wayanad build. Check once with PageSpeed Insights.
