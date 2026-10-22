@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import {
   BoxGeometry,
@@ -6,6 +6,7 @@ import {
   BufferGeometry,
   Color,
   CylinderGeometry,
+  DynamicDrawUsage,
   Float32BufferAttribute,
   InstancedMesh,
   LineBasicMaterial,
@@ -16,200 +17,260 @@ import {
   Vector3,
   type PerspectiveCamera,
 } from 'three'
-import { nodes } from '../data/network'
 import { SceneCanvas } from './SceneCanvas'
 import { getQuality, hasWebGL, type Quality } from './useAdaptiveQuality'
-import { BANK_H, channelAt, terrainBounds, terrainHeight, thalwegAt } from '../lib/terrain'
-import {
-  depthAt,
-  dischargeAt,
-  holdHour,
-  lastHour,
-  maxRain,
-  nodeIndex,
-  rainAt,
-  STAGE_SCALE,
-  sceneLabel,
-  stormGauges,
-  velocityAt,
-} from '../lib/storm'
+import { W, depthAt, dischargeAt, holdHour, lastHour, sceneLabel, sections, stormGauges, type Section } from '../lib/storm'
 import { readToken } from '../lib/tokens'
 import { useSite } from '../state'
-import { NetworkPlan } from '../components/NetworkPlan'
+import { FloodVideo } from '../components/FloodVideo'
 import { fmt } from '../lib/format'
 
 /*
-  The hero: a river valley you can watch flood, driven hour by hour by one
-  real storm from the dataset (lib/storm.ts). Design notes in
-  docs/design-plan.md.
+  The hero: the Wayanad valley flooding in event T1 of the HEC-RAS 2D model.
 
-  Water depth is exaggerated (STAGE_SCALE, lib/storm.ts) so a 0.7 m flood is visible on a
-  valley 22 units long; the scene label says so.
+  Terrain is the bed elevation of the model's own cells on a 50 m grid
+  (public/wayanad/terrain.bin); the water is the model's depth in every cell,
+  every two hours, interpolated between frames (flood.bin). Nothing here is a
+  shader approximation of flooding: where the water is, the model put it.
+
+  Vertical scale is exaggerated (VEX) for ground and water alike, so depth and
+  relief stay in proportion to each other; the label says so. The ground
+  outside the modelled area is a neutral fill, drawn darker and without
+  contours, because no elevation data was supplied there.
 */
 
-const N = nodes.length
-/** Storm hours per real second on the first pass (140 h in under 12 s). */
+/** Vertical exaggeration: the reach drops 47 m over 30 km. */
+const VEX = 30
+/** World units per kilometre. */
+const KM = 1
 const HOURS_PER_SEC = 12
 
-/* ------------------------------------------------------------ valley grid */
+type Data = { bed: Float32Array; wet: Uint32Array; flood: Uint8Array }
 
-type Valley = {
-  terrain: BufferGeometry
-  water: BufferGeometry
+function useWayanadData(): Data | null {
+  const [d, setD] = useState<Data | null>(null)
+  useEffect(() => {
+    let alive = true
+    const base = `${import.meta.env.BASE_URL}wayanad/`
+    const get = (f: string) => fetch(base + f).then((r) => {
+      if (!r.ok) throw new Error(f + ' ' + r.status)
+      return r.arrayBuffer()
+    })
+    Promise.all([get('terrain.bin'), get('wet.bin'), get('flood.bin')])
+      .then(([t, w, f]) => alive && setD({ bed: new Float32Array(t), wet: new Uint32Array(w), flood: new Uint8Array(f) }))
+      .catch(() => alive && setD(null))
+    return () => {
+      alive = false
+    }
+  }, [])
+  return d
 }
 
-/** One grid for ground and water: the water mesh keeps only cells near a channel. */
-function buildValley(q: Quality): Valley {
-  const { minX, maxX, minZ, maxZ } = terrainBounds
-  const w = maxX - minX
-  const d = maxZ - minZ
-  const nx = q.terrainRes
-  const nz = Math.round((nx * d) / w)
-  const vx = nx + 1
-  const vz = nz + 1
-  const count = vx * vz
+/* ------------------------------------------------------------ grid helpers */
+
+const cellKm = W.cellM / 1000
+const cx = (W.nx * cellKm) / 2
+const cz = (W.ny * cellKm) / 2
+const bedLo = W.bedRangeM[0]
+const toX = (col: number) => (col * cellKm - cx) * KM
+const toZ = (row: number) => (row * cellKm - cz) * KM
+const toY = (bedM: number) => ((bedM - bedLo) * VEX) / 1000
+
+/** Fill the ground outside the modelled area: nearest modelled bed, rising with distance. */
+function filledBed(bed: Float32Array) {
+  const n = W.nx * W.ny
+  const out = new Float32Array(n)
+  const dist = new Int32Array(n).fill(-1)
+  const near = new Float32Array(n)
+  const q = new Int32Array(n)
+  let qh = 0
+  let qt = 0
+  for (let i = 0; i < n; i++) {
+    if (!Number.isNaN(bed[i])) {
+      dist[i] = 0
+      near[i] = bed[i]
+      q[qt++] = i
+    }
+  }
+  while (qh < qt) {
+    const i = q[qh++]
+    const r = Math.floor(i / W.nx)
+    const c = i - r * W.nx
+    const nb = [c > 0 ? i - 1 : -1, c < W.nx - 1 ? i + 1 : -1, r > 0 ? i - W.nx : -1, r < W.ny - 1 ? i + W.nx : -1]
+    for (const j of nb) {
+      if (j >= 0 && dist[j] < 0) {
+        dist[j] = dist[i] + 1
+        near[j] = near[i]
+        q[qt++] = j
+      }
+    }
+  }
+  for (let i = 0; i < n; i++) out[i] = dist[i] === 0 ? bed[i] : near[i] + 2.5 * Math.sqrt(Math.max(0, dist[i]))
+  // Nearest-cell fill is piecewise constant and draws terraces; smooth the
+  // fill (three passes of a 9-cell box blur) and leave modelled cells exact.
+  const tmp = new Float32Array(n)
+  const R = 4
+  for (let pass = 0; pass < 3; pass++) {
+    for (let r = 0; r < W.ny; r++) {
+      for (let c = 0; c < W.nx; c++) {
+        let sum = 0
+        let k = 0
+        for (let d = -R; d <= R; d++) {
+          const cc = c + d
+          if (cc >= 0 && cc < W.nx) {
+            sum += out[r * W.nx + cc]
+            k++
+          }
+        }
+        tmp[r * W.nx + c] = sum / k
+      }
+    }
+    for (let r = 0; r < W.ny; r++) {
+      for (let c = 0; c < W.nx; c++) {
+        const i = r * W.nx + c
+        if (dist[i] === 0) continue
+        let sum = 0
+        let k = 0
+        for (let d = -R; d <= R; d++) {
+          const rr = r + d
+          if (rr >= 0 && rr < W.ny) {
+            sum += tmp[rr * W.nx + c]
+            k++
+          }
+        }
+        // Blend toward the smoothed value away from the modelled edge.
+        const w = Math.min(1, dist[i] / 3)
+        out[i] = out[i] * (1 - w) + (sum / k) * w
+      }
+    }
+  }
+  return { y: out, inside: dist.map((v) => (v === 0 ? 1 : 0)) }
+}
+
+type Built = { terrain: BufferGeometry; water: BufferGeometry; vtxWet: Int32Array; stride: number }
+
+function buildValley(d: Data, q: Quality): Built {
+  const stride = q.tier === 'low' ? 2 : 1
+  const nx = Math.floor((W.nx - 1) / stride) + 1
+  const ny = Math.floor((W.ny - 1) / stride) + 1
+  const { y: ground, inside } = filledBed(d.bed)
+  const wetIndex = new Int32Array(W.nx * W.ny).fill(-1)
+  d.wet.forEach((g, k) => (wetIndex[g] = k))
+  const count = nx * ny
   const pos = new Float32Array(count * 3)
-  const ground = new Float32Array(count)
-  const thal = new Float32Array(count)
-  const seg = new Float32Array(count * 3)
-  const flow = new Float32Array(count * 3)
-  const near = new Uint8Array(count)
-  for (let j = 0; j < vz; j++) {
-    for (let i = 0; i < vx; i++) {
-      const k = j * vx + i
-      const x = minX + (i / nx) * w
-      const z = minZ + (j / nz) * d
-      const c = channelAt(x, z)
-      const y = terrainHeight(x, z, c)
-      pos[k * 3] = x
-      pos[k * 3 + 1] = y
-      pos[k * 3 + 2] = z
-      ground[k] = y
-      thal[k] = thalwegAt(c)
-      seg[k * 3] = nodeIndex.get(c.source) ?? 0
-      seg[k * 3 + 1] = nodeIndex.get(c.target) ?? 0
-      seg[k * 3 + 2] = c.t
-      flow[k * 3] = c.dirX
-      flow[k * 3 + 1] = c.dirZ
-      flow[k * 3 + 2] = c.d / c.hw
-      // Anything water could reach: the channel plus a floodplain margin.
-      near[k] = c.d < c.hw + 1.4 ? 1 : 0
+  const ins = new Float32Array(count)
+  const vtxWet = new Int32Array(count)
+  for (let r = 0; r < ny; r++) {
+    for (let c = 0; c < nx; c++) {
+      const k = r * nx + c
+      const g = r * stride * W.nx + c * stride
+      pos[k * 3] = toX(c * stride)
+      pos[k * 3 + 1] = toY(ground[g])
+      pos[k * 3 + 2] = toZ(r * stride)
+      ins[k] = inside[g]
+      vtxWet[k] = wetIndex[g]
     }
   }
   const all: number[] = []
   const wet: number[] = []
-  for (let j = 0; j < nz; j++) {
-    for (let i = 0; i < nx; i++) {
-      const a = j * vx + i
+  for (let r = 0; r < ny - 1; r++) {
+    for (let c = 0; c < nx - 1; c++) {
+      const a = r * nx + c
       const b = a + 1
-      const c = a + vx
-      const e = c + 1
-      all.push(a, c, b, b, c, e)
-      if (near[a] || near[b] || near[c] || near[e]) wet.push(a, c, b, b, c, e)
+      const e = a + nx
+      const f = e + 1
+      all.push(a, e, b, b, e, f)
+      if (vtxWet[a] >= 0 || vtxWet[b] >= 0 || vtxWet[e] >= 0 || vtxWet[f] >= 0) wet.push(a, e, b, b, e, f)
     }
   }
   const terrain = new BufferGeometry()
   terrain.setAttribute('position', new BufferAttribute(pos, 3))
+  terrain.setAttribute('aIn', new BufferAttribute(ins, 1))
   terrain.setIndex(all)
   terrain.computeVertexNormals()
-
   const water = new BufferGeometry()
   water.setAttribute('position', new BufferAttribute(pos, 3))
-  water.setAttribute('aGround', new BufferAttribute(ground, 1))
-  water.setAttribute('aThal', new BufferAttribute(thal, 1))
-  water.setAttribute('aSeg', new BufferAttribute(seg, 3))
-  water.setAttribute('aFlow', new BufferAttribute(flow, 3))
+  const depth = new BufferAttribute(new Float32Array(count), 1)
+  depth.setUsage(DynamicDrawUsage)
+  water.setAttribute('aDepth', depth)
   water.setIndex(wet)
-  return { terrain, water }
+  return { terrain, water, vtxWet, stride }
 }
 
-/* ---------------------------------------------------------------- ground */
-
 function groundMaterial() {
-  const { minX, maxX, minZ, maxZ } = terrainBounds
   return new ShaderMaterial({
     uniforms: {
       uBase: { value: new Color(readToken('abyss-raised')) },
       uSky: { value: new Color(readToken('foam-soft')) },
       uGround: { value: new Color(readToken('abyss')) },
       uLine: { value: new Color(readToken('graticule')) },
-      uBounds: { value: [minX, maxX, minZ, maxZ] },
-      uLightDir: { value: new Vector3(-8, 14, 9).normalize() },
+      uLightDir: { value: new Vector3(-6, 14, 9).normalize() },
+      uStepY: { value: (2 * VEX) / 1000 },
+      uHalf: { value: [cx * KM, cz * KM] },
     },
     vertexShader: /* glsl */ `
-      varying vec3 vN; varying vec3 vP; varying float vDepth;
+      attribute float aIn;
+      varying vec3 vN; varying vec3 vP; varying float vDepth; varying float vIn;
       void main() {
-        vN = normal; vP = position;
+        vN = normal; vP = position; vIn = aIn;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         vDepth = -mv.z;
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 uBase; uniform vec3 uSky; uniform vec3 uGround; uniform vec3 uLine;
-      uniform float uBounds[4]; uniform vec3 uLightDir;
-      varying vec3 vN; varying vec3 vP; varying float vDepth;
+      uniform vec3 uLightDir; uniform float uStepY; uniform float uHalf[2];
+      varying vec3 vN; varying vec3 vP; varying float vDepth; varying float vIn;
       void main() {
         vec3 n = normalize(vN);
-        // Survey-chart isolines every 0.12 world units, index line every fifth.
-        float h = vP.y / 0.12;
+        // Survey isolines every 2 m of real elevation, index line every 10 m,
+        // inside the modelled area only.
+        float h = vP.y / uStepY;
         float fw = fwidth(h);
         float l = 1.0 - smoothstep(0.0, fw * 1.2, abs(fract(h - 0.5) - 0.5));
         float idx = 1.0 - smoothstep(0.0, fw * 1.6, abs(fract(h / 5.0 - 0.5) - 0.5) * 5.0);
         float crowd = 1.0 - smoothstep(0.25, 0.6, fw);
-        vec3 albedo = mix(uBase, uLine, (l * 0.14 + idx * 0.16) * crowd);
+        float inside = step(0.5, vIn);
+        vec3 albedo = mix(uBase, uLine, (l * 0.16 + idx * 0.2) * crowd * inside);
+        albedo = mix(uGround * 1.15, albedo, 0.35 + 0.65 * inside);
         vec3 hemi = mix(uGround, uSky, 0.5 * n.y + 0.5) * 0.9;
         vec3 c = albedo / 3.14159 * (hemi + vec3(1.4) * max(dot(n, uLightDir), 0.0));
-        c = mix(c, uGround, smoothstep(26.0, 60.0, vDepth));
-        float ex = min(vP.x - uBounds[0], uBounds[1] - vP.x);
-        float ez = min(vP.z - uBounds[2], uBounds[3] - vP.z);
-        c = mix(uGround, c, smoothstep(0.0, 4.0, min(ex, ez)));
+        c = mix(c, uGround, smoothstep(70.0, 130.0, vDepth));
+        // Dissolve the edges of the grid into the background, so the ground
+        // does not read as a slab.
+        float edge = min(uHalf[0] - abs(vP.x), uHalf[1] - abs(vP.z));
+        c = mix(uGround, c, smoothstep(0.0, 3.0, edge));
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
   })
 }
 
-/* ----------------------------------------------------------------- water */
-
-type WaterUniforms = {
-  uStage: { value: Float32Array }
-  uVel: { value: Float32Array }
-  uTime: { value: number }
-}
-
-function waterMaterial(q: Quality, u: WaterUniforms) {
-  // 0: one ripple sample, no flow map, no foam. 1: flow map and foam. 2: plus a second ripple scale.
-  const detail = q.tier === 'low' ? 0 : q.tier === 'medium' ? 1 : 2
+function waterMaterial(q: Quality, uTime: { value: number }) {
+  const detail = q.tier === 'low' ? 0 : 1
   return new ShaderMaterial({
-    defines: { N_NODES: N, DETAIL: detail },
+    defines: { DETAIL: detail },
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
     uniforms: {
-      ...u,
+      uTime,
+      uVex: { value: VEX / 1000 },
       uShallow: { value: new Color(readToken('w1')) },
       uMid: { value: new Color(readToken('w3')) },
       uDeep: { value: new Color(readToken('w5')) },
-      // Sky seen in the water: the pale chart blue darkened toward the valley's own colour.
       uSky: { value: new Color(readToken('foam-soft')).lerp(new Color(readToken('abyss')), 0.45) },
       uFoam: { value: new Color(readToken('foam')) },
       uFog: { value: new Color(readToken('abyss')) },
-      uLightDir: { value: new Vector3(-8, 14, 9).normalize() },
+      uLightDir: { value: new Vector3(-6, 14, 9).normalize() },
     },
     vertexShader: /* glsl */ `
-      attribute float aGround; attribute float aThal; attribute vec3 aSeg; attribute vec3 aFlow;
-      uniform float uStage[N_NODES]; uniform float uVel[N_NODES];
-      varying float vDepth; varying vec3 vWorld; varying vec2 vDir; varying float vSpeed; varying float vViewZ;
+      attribute float aDepth;
+      uniform float uVex;
+      varying float vDepth; varying vec3 vWorld; varying float vViewZ;
       void main() {
-        int a = int(aSeg.x + 0.5);
-        int b = int(aSeg.y + 0.5);
-        float stage = mix(uStage[a], uStage[b], aSeg.z);
-        float vel = mix(uVel[a], uVel[b], aSeg.z);
-        float surf = aThal + stage;
-        // Depth of water over the ground here. Negative = dry; the fragment
-        // shader discards it, which is what draws the shoreline.
-        vDepth = surf - aGround;
-        vWorld = vec3(position.x, surf, position.z);
-        vDir = aFlow.xy;
-        // Fastest mid-channel, slowing toward the banks and over the floodplain.
-        vSpeed = vel * clamp(1.0 - 0.75 * aFlow.z * aFlow.z, 0.15, 1.0);
+        vDepth = aDepth;
+        vWorld = vec3(position.x, position.y + aDepth * uVex, position.z);
         vec4 mv = viewMatrix * vec4(vWorld, 1.0);
         vViewZ = -mv.z;
         gl_Position = projectionMatrix * mv;
@@ -218,8 +279,7 @@ function waterMaterial(q: Quality, u: WaterUniforms) {
       uniform float uTime;
       uniform vec3 uShallow; uniform vec3 uMid; uniform vec3 uDeep;
       uniform vec3 uSky; uniform vec3 uFoam; uniform vec3 uFog; uniform vec3 uLightDir;
-      varying float vDepth; varying vec3 vWorld; varying vec2 vDir; varying float vSpeed; varying float vViewZ;
-
+      varying float vDepth; varying vec3 vWorld; varying float vViewZ;
       float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float noise(vec2 p) {
         vec2 i = floor(p); vec2 f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -229,235 +289,126 @@ function waterMaterial(q: Quality, u: WaterUniforms) {
         const float e = 0.08;
         return vec2(noise(p + vec2(e, 0.0)) - noise(p - vec2(e, 0.0)), noise(p + vec2(0.0, e)) - noise(p - vec2(0.0, e))) / (2.0 * e);
       }
-      // Ripple slope at p, advected along the reach: two phases offset by half
-      // a cycle and cross-faded, so the pattern moves without stretching.
-      vec2 flowRipple(vec2 p, float scale, float rate) {
-        float t = uTime * rate;
-        float p0 = fract(t);
-        float p1 = fract(t + 0.5);
-        float w = abs(1.0 - 2.0 * p0);
-        vec2 drift = vDir * vSpeed * 0.9;
-        vec2 g0 = grad((p - drift * p0) * scale);
-        vec2 g1 = grad((p - drift * p1) * scale + 17.3);
-        return mix(g0, g1, 1.0 - w);
-      }
-
       void main() {
-        if (vDepth <= 0.0) discard;
-        vec2 p = vWorld.xz;
-        vec2 g;
-        #if DETAIL == 0
-          g = grad(p * 7.0 + uTime * 0.05);
-        #else
-          g = flowRipple(p, 7.0, 0.35);
-          #if DETAIL == 2
-            g += 0.5 * flowRipple(p + 3.1, 17.0, 0.6);
-          #endif
+        // Depth from the model: under 3 cm counts as dry.
+        if (vDepth < 0.03) discard;
+        vec2 p = vWorld.xz * 9.0;
+        vec2 g = grad(p + vec2(uTime * 0.11, uTime * 0.07));
+        #if DETAIL == 1
+          g += 0.5 * grad(p * 2.3 - vec2(uTime * 0.17, -uTime * 0.05));
         #endif
-        vec3 n = normalize(vec3(-g.x * 0.22, 1.0, -g.y * 0.22));
+        vec3 n = normalize(vec3(-g.x * 0.12, 1.0, -g.y * 0.12));
         vec3 V = normalize(cameraPosition - vWorld);
-
-        // Bathymetric ramp with exponential absorption: pale shallows, dark channel.
-        float absorb = 1.0 - exp(-vDepth * 11.0);
-        vec3 body = mix(uShallow, uMid, smoothstep(0.0, 0.35, absorb));
-        body = mix(body, uDeep, smoothstep(0.35, 0.95, absorb));
-        // Ripple shading carries the movement: the surface darkens and lightens as it slopes.
+        // The page's bathymetric ramp by modelled depth (metres).
+        float t = sqrt(clamp(vDepth / 12.0, 0.0, 1.0));
+        vec3 body = mix(uShallow, uMid, smoothstep(0.0, 0.5, t));
+        body = mix(body, uDeep, smoothstep(0.5, 1.0, t));
         float slope = dot(n, normalize(vec3(-0.6, 0.5, 0.6)));
-        vec3 c = body * (0.55 + 0.5 * slope);
-
+        vec3 c = body * (0.6 + 0.45 * slope);
         float fres = 0.02 + 0.98 * pow(1.0 - max(dot(n, V), 0.0), 5.0);
-        c = mix(c, uSky, fres * 0.6);
-        c += vec3(0.45) * pow(max(dot(reflect(-uLightDir, n), V), 0.0), 60.0);
-
-        #if DETAIL >= 1
-          // Foam: a fringe on the shoreline and the shallows, and streaks where the current is fast.
-          float shore = 1.0 - smoothstep(0.0, 0.018, vDepth);
-          float churn = smoothstep(1.1, 1.9, vSpeed) * smoothstep(0.55, 0.9, noise(p * 13.0 - vDir * uTime * vSpeed * 1.4));
-          float foam = clamp(shore * (0.45 + 0.55 * noise(p * 24.0 + uTime * 0.4)) + churn * 0.6, 0.0, 1.0);
-          c = mix(c, uFoam, foam * 0.8);
+        c = mix(c, uSky, fres * 0.5);
+        c += vec3(0.35) * pow(max(dot(reflect(-uLightDir, n), V), 0.0), 60.0);
+        #if DETAIL == 1
+          float shore = 1.0 - smoothstep(0.03, 0.25, vDepth);
+          c = mix(c, uFoam, shore * 0.55 * (0.5 + 0.5 * noise(p * 3.0 + uTime * 0.3)));
         #endif
-
-        c = mix(c, uFog, smoothstep(26.0, 60.0, vViewZ));
+        c = mix(c, uFog, smoothstep(70.0, 130.0, vViewZ));
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
   })
 }
 
-/* ------------------------------------------------------------------ rain */
+/* --------------------------------------------- gauges and section lines */
 
-const RAIN_COUNT = { low: 1500, medium: 4000, high: 8000 } as const
-
-function buildRain(q: Quality) {
-  const count = RAIN_COUNT[q.tier]
-  const weights = nodes.map((n) => n.localAreaKm2)
-  const total = weights.reduce((a, b) => a + b, 0)
-  // Deterministic: the same storm falls on every load.
-  let s = 1234567
-  const rnd = () => {
-    s = (s * 1664525 + 1013904223) >>> 0
-    return s / 4294967296
-  }
-  const pos = new Float32Array(count * 3)
-  const ground = new Float32Array(count)
-  const nodeIdx = new Float32Array(count)
-  const seed = new Float32Array(count * 3)
-  for (let i = 0; i < count; i++) {
-    let r = rnd() * total
-    let k = 0
-    while (k < N - 1 && r > weights[k]) r -= weights[k++]
-    const n = nodes[k]
-    const a = rnd() * Math.PI * 2
-    const rad = Math.sqrt(rnd()) * 1.7
-    const x = n.pos[0] + Math.cos(a) * rad
-    const z = n.pos[2] + Math.sin(a) * rad
-    pos[i * 3] = x
-    pos[i * 3 + 2] = z
-    ground[i] = terrainHeight(x, z)
-    nodeIdx[i] = k
-    seed[i * 3] = rnd()
-    seed[i * 3 + 1] = rnd()
-    seed[i * 3 + 2] = rnd()
-  }
-  const g = new BufferGeometry()
-  g.setAttribute('position', new BufferAttribute(pos, 3))
-  g.setAttribute('aGround', new BufferAttribute(ground, 1))
-  g.setAttribute('aNode', new BufferAttribute(nodeIdx, 1))
-  g.setAttribute('aSeed', new BufferAttribute(seed, 3))
-  return g
+/** Local downstream direction at a section, from its neighbours, in grid units. */
+function dirAt(i: number) {
+  const a = sections[Math.max(0, i - 1)].grid
+  const b = sections[Math.min(sections.length - 1, i + 1)].grid
+  const dx = b[0] - a[0]
+  const dz = b[1] - a[1]
+  const l = Math.hypot(dx, dz) || 1
+  return [dx / l, dz / l] as const
 }
 
-function rainMaterial(u: { uRain: { value: Float32Array }; uTime: { value: number }; uPx: { value: number } }) {
-  return new ShaderMaterial({
-    defines: { N_NODES: N },
-    transparent: true,
-    depthWrite: false,
-    uniforms: { ...u, uMax: { value: maxRain }, uCol: { value: new Color(readToken('foam')) } },
-    vertexShader: /* glsl */ `
-      attribute float aGround; attribute float aNode; attribute vec3 aSeed;
-      uniform float uRain[N_NODES]; uniform float uMax; uniform float uTime; uniform float uPx;
-      varying float vA;
-      void main() {
-        // Each drop belongs to one cross-section and shows only while the
-        // dataset rains there; density follows that hour's rainfall.
-        float r = uRain[int(aNode + 0.5)] / uMax;
-        float on = step(aSeed.z, r * 1.6) * step(0.001, r);
-        float y = aGround + 0.15 + 2.6 * (1.0 - fract(aSeed.y + uTime * (0.8 + 0.3 * aSeed.x)));
-        vec4 mv = viewMatrix * vec4(position.x, y, position.z, 1.0);
-        gl_Position = projectionMatrix * mv;
-        gl_PointSize = on * uPx * 90.0 / max(1.0, -mv.z);
-        vA = on * (0.35 + 0.4 * aSeed.x) * (1.0 - smoothstep(30.0, 60.0, -mv.z));
-      }`,
-    fragmentShader: /* glsl */ `
-      uniform vec3 uCol; varying float vA;
-      void main() {
-        vec2 c = gl_PointCoord - 0.5;
-        if (abs(c.x) > 0.06) discard;
-        gl_FragColor = vec4(uCol, vA * (1.0 - abs(c.y) * 2.0));
-        #include <colorspace_fragment>
-      }`,
-  })
-}
-
-/* ------------------------------------------------- gauges and section lines */
-
-function sideOf(id: string) {
-  const n = nodes[nodeIndex.get(id)!]
-  const c = channelAt(n.pos[0], n.pos[2])
-  // Perpendicular to the flow, on the left bank looking downstream.
-  return { n, c, px: -c.dirZ, pz: c.dirX }
+function groundAt(ground: Float32Array, col: number, row: number) {
+  const c = Math.max(0, Math.min(W.nx - 1, Math.round(col)))
+  const r = Math.max(0, Math.min(W.ny - 1, Math.round(row)))
+  return ground[r * W.nx + c]
 }
 
 const towerAnchor = stormGauges.map(() => new Vector3())
 
-function Gauges({ q }: { q: Quality }) {
+function Gauges({ ground, q }: { ground: Float32Array; q: Quality }) {
   const built = useMemo(() => {
-    const well = new CylinderGeometry(0.085, 0.1, 1, q.radialSegments)
-    const hut = new BoxGeometry(0.26, 0.17, 0.26)
-    const staff = new BoxGeometry(0.05, 1, 0.015)
+    const well = new CylinderGeometry(0.06, 0.07, 1, q.radialSegments)
+    const hut = new BoxGeometry(0.18, 0.12, 0.18)
     const concrete = new MeshLambertMaterial({ color: new Color(readToken('paper-line')) })
     const roof = new MeshLambertMaterial({ color: new Color(readToken('paper')) })
-    const staffMat = new ShaderMaterial({
-      uniforms: { uLight: { value: new Color(readToken('foam')) }, uDark: { value: new Color(readToken('ink')) } },
-      vertexShader: /* glsl */ `varying float vY; void main() { vY = position.y + 0.5; gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0); }`,
-      fragmentShader: /* glsl */ `uniform vec3 uLight; uniform vec3 uDark; varying float vY;
-        void main() { float band = step(0.5, fract(vY * 12.0)); float major = step(0.82, fract(vY * 3.0));
-          gl_FragColor = vec4(mix(uDark, uLight, max(band, major)), 1.0);
-          #include <colorspace_fragment>
-        }`,
-    })
     const wells = new InstancedMesh(well, concrete, stormGauges.length)
     const huts = new InstancedMesh(hut, roof, stormGauges.length)
-    const staffs = new InstancedMesh(staff, staffMat, stormGauges.length)
     const o = new Object3D()
     stormGauges.forEach((g, i) => {
-      const { n, c, px, pz } = sideOf(g.id)
-      const bx = n.pos[0] + px * (c.hw + 0.22)
-      const bz = n.pos[2] + pz * (c.hw + 0.22)
-      const gy = terrainHeight(bx, bz)
-      const h = 0.72
-      o.position.set(bx, gy + h / 2, bz)
-      o.rotation.set(0, 0, 0)
+      const k = sections.findIndex((s) => s.id === g.id)
+      const [dx, dz] = dirAt(k)
+      const s: Section = sections[k]
+      const off = s.width_m / 2 / W.cellM + 2.5
+      const col = s.grid[0] - dz * off
+      const row = s.grid[1] + dx * off
+      const gy = toY(groundAt(ground, col, row))
+      const h = 0.55
+      o.position.set(toX(col), gy + h / 2, toZ(row))
       o.scale.set(1, h, 1)
       o.updateMatrix()
       wells.setMatrixAt(i, o.matrix)
-      o.position.set(bx, gy + h + 0.085, bz)
-      o.rotation.set(0, Math.atan2(px, pz), 0)
+      o.position.set(toX(col), gy + h + 0.06, toZ(row))
       o.scale.set(1, 1, 1)
       o.updateMatrix()
       huts.setMatrixAt(i, o.matrix)
-      // Staff plate standing in the channel near the tower's bank.
-      const sx = n.pos[0] + px * c.hw * 0.7
-      const sz = n.pos[2] + pz * c.hw * 0.7
-      const base = thalwegAt(c)
-      o.position.set(sx, base + 0.21, sz)
-      o.scale.set(1, 0.42, 1)
-      o.updateMatrix()
-      staffs.setMatrixAt(i, o.matrix)
-      towerAnchor[i].set(bx, gy + h + 0.4, bz)
+      towerAnchor[i].set(toX(col), gy + h + 0.3, toZ(row))
     })
-    return { wells, huts, staffs, dispose: [well, hut, staff, concrete, roof, staffMat] }
-  }, [q.radialSegments])
+    return { wells, huts, dispose: [well, hut, concrete, roof] }
+  }, [ground, q.radialSegments])
   useEffect(() => () => built.dispose.forEach((d) => d.dispose()), [built])
   return (
     <group>
       <primitive object={built.wells} />
       <primitive object={built.huts} />
-      <primitive object={built.staffs} />
     </group>
   )
 }
 
-/** Every ungauged cross-section: a survey line across the channel at bank height, and two pins. No reading. */
-function SectionLines() {
+/** Every ungauged section: a survey line across the river and two pins. No reading. */
+function SectionLines({ ground }: { ground: Float32Array }) {
   const built = useMemo(() => {
-    const gauged = new Set(stormGauges.map((g) => g.id))
     const pts: number[] = []
     const pins: [number, number, number][] = []
-    for (const n of nodes) {
-      if (gauged.has(n.id)) continue
-      const { c, px, pz } = sideOf(n.id)
-      const y = thalwegAt(c) + BANK_H + 0.015
-      const r = c.hw + 0.14
-      const a: [number, number, number] = [n.pos[0] - px * r, y, n.pos[2] - pz * r]
-      const b: [number, number, number] = [n.pos[0] + px * r, y, n.pos[2] + pz * r]
-      pts.push(...a, ...b)
-      pins.push(a, b)
-    }
+    sections.forEach((s, i) => {
+      if (s.gauged) return
+      const [dx, dz] = dirAt(i)
+      const half = s.width_m / 2 / W.cellM + 1.5
+      const a = [s.grid[0] - dz * half, s.grid[1] + dx * half]
+      const b = [s.grid[0] + dz * half, s.grid[1] - dx * half]
+      const y = toY(Math.max(groundAt(ground, a[0], a[1]), groundAt(ground, b[0], b[1]))) + 0.03
+      const A: [number, number, number] = [toX(a[0]), y, toZ(a[1])]
+      const B: [number, number, number] = [toX(b[0]), y, toZ(b[1])]
+      pts.push(...A, ...B)
+      pins.push(A, B)
+    })
     const g = new BufferGeometry()
     g.setAttribute('position', new Float32BufferAttribute(pts, 3))
-    const m = new LineBasicMaterial({ color: new Color(readToken('foam-soft')), transparent: true, opacity: 0.75 })
-    const pinGeo = new BoxGeometry(0.025, 0.1, 0.025)
+    const m = new LineBasicMaterial({ color: new Color(readToken('foam-soft')), transparent: true, opacity: 0.85 })
+    const pinGeo = new BoxGeometry(0.03, 0.14, 0.03)
     const pinMat = new MeshLambertMaterial({ color: new Color(readToken('foam-soft')) })
     const mesh = new InstancedMesh(pinGeo, pinMat, pins.length)
     const o = new Object3D()
     pins.forEach((p, i) => {
-      o.position.set(p[0], p[1] + 0.05, p[2])
+      o.position.set(p[0], p[1] + 0.07, p[2])
       o.updateMatrix()
       mesh.setMatrixAt(i, o.matrix)
     })
     return { g, m, mesh, dispose: [g, m, pinGeo, pinMat] }
-  }, [])
+  }, [ground])
   useEffect(() => () => built.dispose.forEach((d) => d.dispose()), [built])
   return (
     <group>
@@ -467,13 +418,8 @@ function SectionLines() {
   )
 }
 
-/* --------------------------------------------------------- gauge readouts */
+/* --------------------------------------------------------- gauge boards */
 
-/*
-  Gauge boards are plain DOM, one layer for all four, positioned by projecting
-  each tower top through the camera on every rendered frame. The numbers are
-  the dataset's depth and discharge at that gauge, at the current hour.
-*/
 const boardEls: (HTMLDivElement | null)[] = []
 const boardStage: (HTMLSpanElement | null)[] = []
 const boardFlow: (HTMLSpanElement | null)[] = []
@@ -494,8 +440,8 @@ function BoardProjector() {
       const s = boardStage[i]
       const f = boardFlow[i]
       if (s) s.textContent = `${fmt(depthAt(id, t), 2)} m`
-      const q = dischargeAt(id, t)
-      if (f) f.textContent = q == null ? '' : `${fmt(q, 1)} m³/s`
+      const qq = dischargeAt(id, t)
+      if (f) f.textContent = qq == null ? '' : `${fmt(qq, 0)} m³/s`
     })
   })
   return null
@@ -520,7 +466,7 @@ function GaugeBoards() {
             ref={(el) => {
               boardStage[i] = el
             }}
-          />{' '}
+          />
           <span
             className="num ml-2 text-foam-soft"
             ref={(el) => {
@@ -535,16 +481,13 @@ function GaugeBoards() {
 
 /* ---------------------------------------------------------------- camera */
 
-// Camera stands downstream and looks up the valley; the dolly follows the storm.
 const scrollState = { p: 0 }
-const T0 = new Vector3(0.0, 0.9, 0.6)
-const T1 = new Vector3(5.0, 0.4, 0.4)
 
 function CameraRig({ q }: { q: Quality }) {
   const { camera, gl, size, invalidate } = useThree()
   const drag = useRef({ az: 0, pol: 0, active: false, x: 0, y: 0, mouse: false })
-  const cur = useRef({ target: T0.clone(), init: false })
   const reduced = useSite((s) => s.reducedMotion)
+  const cur = useRef({ init: false, target: new Vector3() })
 
   useEffect(() => {
     const el = gl.domElement
@@ -557,15 +500,13 @@ function CameraRig({ q }: { q: Quality }) {
     const move = (e: PointerEvent) => {
       const d = drag.current
       if (!d.active) return
-      d.az = MathUtils.clamp(d.az - (e.clientX - d.x) * 0.005, -0.7, 0.7)
-      if (d.mouse) d.pol = MathUtils.clamp(d.pol + (e.clientY - d.y) * 0.004, -0.25, 0.32)
+      d.az = MathUtils.clamp(d.az - (e.clientX - d.x) * 0.005, -0.8, 0.8)
+      if (d.mouse) d.pol = MathUtils.clamp(d.pol + (e.clientY - d.y) * 0.004, -0.3, 0.3)
       d.x = e.clientX
       d.y = e.clientY
       invalidate()
     }
     const up = () => (drag.current.active = false)
-    // Scroll is read here, never inside the frame loop: a read there after the
-    // board layer's style writes would force a layout of the whole page per frame.
     const scroll = () => {
       scrollState.p = window.scrollY / Math.max(1, window.innerHeight)
       invalidate()
@@ -588,22 +529,17 @@ function CameraRig({ q }: { q: Quality }) {
   useFrame((_, dt) => {
     const cam = camera as PerspectiveCamera
     const aspect = size.width / Math.max(1, size.height)
-    const portrait = aspect < 1
-    // From the lg breakpoint the scene fills the hero behind the headline
-    // column and above the timeline; below it the scene has its own box.
     const overlay = typeof window !== 'undefined' && window.innerWidth >= 1100
     const coupled = q.scrollCamera && !reduced
-    const scrollP = coupled ? MathUtils.clamp(scrollState.p, 0, 1) : 0
-    const p = MathUtils.clamp(scrollP * 0.8, 0, 1)
-    const target = T0.clone().lerp(T1, p)
-    if (!overlay) target.set(0.4 + p * 2, 0.9, 0.2)
-
-    // In its own box, back off until the 24-unit valley fits the width.
+    const p = coupled ? MathUtils.clamp(scrollState.p, 0, 1) * 0.6 : 0
+    const target = new Vector3(0, 0.3, 0.4)
+    // Fit the valley's 18 km width; the river runs south-west to north-east,
+    // and the camera stands to the south-east looking across it.
     const halfH = Math.tan(MathUtils.degToRad(15))
-    const fit = 12.5 / (halfH * Math.max(0.5, aspect)) + 4
-    const radius = overlay ? 40 - Math.min(aspect, 2.2) * 2 : Math.min(70, fit)
-    const az = (portrait ? 1.42 : 1.02) + drag.current.az - p * 0.25
-    const pol = (portrait ? 0.7 : 1.05) + drag.current.pol - p * 0.08
+    const fit = 9.5 / (halfH * Math.max(0.55, aspect))
+    const radius = overlay ? Math.min(70, fit * 1.75) : Math.min(80, fit + 4)
+    const az = 0.55 + drag.current.az - p * 0.2
+    const pol = 0.9 + drag.current.pol - p * 0.1
     const desired = new Vector3(
       target.x + radius * Math.sin(pol) * Math.sin(az),
       target.y + radius * Math.cos(pol),
@@ -614,10 +550,7 @@ function CameraRig({ q }: { q: Quality }) {
     cam.position.lerp(desired, k)
     cur.current.target.lerp(target, k)
     cam.lookAt(cur.current.target)
-    // On wide screens shift the projection so the valley sits right of the
-    // headline column instead of under it.
     const shift = overlay && aspect > 1.25 ? Math.round(size.width * Math.min(0.22, (aspect - 1.05) * 0.3)) : 0
-    // and above the storm timeline along the bottom.
     const lift = overlay && aspect > 1.25 ? Math.round(size.height * 0.15) : 0
     const view = cam.view
     if (shift && (!view || view.offsetX !== -shift || view.fullWidth !== size.width || view.fullHeight !== size.height)) {
@@ -633,15 +566,18 @@ function CameraRig({ q }: { q: Quality }) {
 /* ----------------------------------------------------------------- clock */
 
 /*
-  Owns storm time. Advances it on the first pass, applies seeks from the
-  timeline, and writes the hour's depth, velocity and rain for every
-  cross-section into the shader uniforms.
+  Owns flood time. Advances it on the first pass, applies timeline seeks, and
+  writes the model's depth at every water vertex, interpolated between the
+  two-hourly frames.
 */
-function StormClock({ water, rain }: { water: WaterUniforms; rain: { uRain: { value: Float32Array }; uTime: { value: number } } }) {
+function FloodClock({ d, built, uTime }: { d: Data; built: Built; uTime: { value: number } }) {
   const invalidate = useThree((s) => s.invalidate)
   const t = useRef(useSite.getState().heroTime)
   const lastPush = useRef(0)
+  const lastH = useRef(-1)
   const reduced = useSite((s) => s.reducedMotion)
+  const step = W.frameHours.length > 1 ? W.frameHours[1] - W.frameHours[0] : 1
+  const nFrames = W.frameHours.length
 
   useEffect(
     () =>
@@ -661,16 +597,23 @@ function StormClock({ water, rain }: { water: WaterUniforms; rain: { uRain: { va
       if (t.current >= lastHour) st.setHeroSettled(true)
     }
     const h = t.current
-    for (let i = 0; i < N; i++) {
-      const id = nodes[i].id
-      water.uStage.value[i] = depthAt(id, h) * STAGE_SCALE
-      water.uVel.value[i] = velocityAt(id, h)
-      rain.uRain.value[i] = reduced ? 0 : rainAt(id, h)
+    if (Math.abs(h - lastH.current) > 1e-3) {
+      lastH.current = h
+      const fpos = Math.min(nFrames - 1, h / step)
+      const f0 = Math.floor(fpos)
+      const f1 = Math.min(nFrames - 1, f0 + 1)
+      const w = fpos - f0
+      const attr = built.water.getAttribute('aDepth') as BufferAttribute
+      const arr = attr.array as Float32Array
+      const nw = W.nWet
+      const s = W.depthStepM
+      for (let k = 0; k < built.vtxWet.length; k++) {
+        const j = built.vtxWet[k]
+        arr[k] = j < 0 ? 0 : (d.flood[f0 * nw + j] * (1 - w) + d.flood[f1 * nw + j] * w) * s
+      }
+      attr.needsUpdate = true
     }
-    if (!reduced) {
-      water.uTime.value += Math.min(dt, 0.1)
-      rain.uTime.value = water.uTime.value
-    }
+    if (!reduced && st.heroPlaying) uTime.value += Math.min(dt, 0.1)
     if (state.clock.elapsedTime - lastPush.current > 0.08 || seek !== null) {
       lastPush.current = state.clock.elapsedTime
       if (Math.abs(st.heroTime - h) > 0.02) st.setHeroTime(h)
@@ -681,49 +624,33 @@ function StormClock({ water, rain }: { water: WaterUniforms; rain: { uRain: { va
 
 /* ----------------------------------------------------------------- scene */
 
-function Scene() {
+function Scene({ d }: { d: Data }) {
   const q = getQuality()
-  const { size, viewport } = useThree()
-  const valley = useMemo(() => buildValley(q), [q])
-  const uniforms = useMemo(() => {
-    const water: WaterUniforms = {
-      uStage: { value: new Float32Array(N) },
-      uVel: { value: new Float32Array(N) },
-      uTime: { value: 0 },
-    }
-    const rain = { uRain: { value: new Float32Array(N) }, uTime: { value: 0 }, uPx: { value: 1 } }
-    return { water, rain }
-  }, [])
-  uniforms.rain.uPx.value = (size.height * viewport.dpr) / 260
-  const mats = useMemo(
-    () => ({ ground: groundMaterial(), water: waterMaterial(q, uniforms.water), rain: rainMaterial(uniforms.rain) }),
-    [q, uniforms],
-  )
-  const rainGeo = useMemo(() => buildRain(q), [q])
+  const built = useMemo(() => buildValley(d, q), [d, q])
+  const ground = useMemo(() => filledBed(d.bed).y, [d])
+  const uTime = useMemo(() => ({ value: 0 }), [])
+  const mats = useMemo(() => ({ ground: groundMaterial(), water: waterMaterial(q, uTime) }), [q, uTime])
   useEffect(
     () => () => {
-      valley.terrain.dispose()
-      valley.water.dispose()
-      rainGeo.dispose()
+      built.terrain.dispose()
+      built.water.dispose()
       mats.ground.dispose()
       mats.water.dispose()
-      mats.rain.dispose()
     },
-    [valley, rainGeo, mats],
+    [built, mats],
   )
   const abyss = readToken('abyss')
   return (
     <>
       <color attach="background" args={[abyss]} />
       <hemisphereLight args={[readToken('foam-soft'), abyss, 0.9]} />
-      <directionalLight position={[-8, 14, 9]} intensity={1.4} />
-      <mesh geometry={valley.terrain} material={mats.ground} />
-      <mesh geometry={valley.water} material={mats.water} frustumCulled={false} />
-      <SectionLines />
-      <Gauges q={q} />
-      <points geometry={rainGeo} material={mats.rain} frustumCulled={false} renderOrder={3} />
+      <directionalLight position={[-6, 14, 9]} intensity={1.4} />
+      <mesh geometry={built.terrain} material={mats.ground} />
+      <mesh geometry={built.water} material={mats.water} frustumCulled={false} />
+      <SectionLines ground={ground} />
+      <Gauges ground={ground} q={q} />
       <BoardProjector />
-      <StormClock water={uniforms.water} rain={uniforms.rain} />
+      <FloodClock d={d} built={built} uTime={uTime} />
       <CameraRig q={q} />
     </>
   )
@@ -732,22 +659,26 @@ function Scene() {
 export default function RiverScene() {
   const reduced = useSite((s) => s.reducedMotion)
   const playing = useSite((s) => s.heroPlaying)
+  const d = useWayanadData()
+  const fallback = <FloodVideo className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16" />
   return (
     <div className="absolute inset-0">
-      <SceneCanvas
-        name="hero"
-        className="absolute inset-0"
-        // One orchestrated moment: the storm's first pass. After it, the scene
-        // redraws only when the reader drags the storm or the camera.
-        frameloop={playing && !reduced ? 'always' : 'demand'}
-        camera={{ fov: 30, near: 0.5, far: 120, position: [-16, 10, 14] }}
-        touchAction="pan-y"
-        wrapperProps={{ role: 'img', 'aria-label': sceneLabel }}
-        fallback={<NetworkPlan mode="wave" className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16" />}
-      >
-        <Scene />
-      </SceneCanvas>
-      {hasWebGL() && <GaugeBoards />}
+      {d ? (
+        <SceneCanvas
+          name="hero"
+          className="absolute inset-0"
+          // One orchestrated moment: the flood's first pass. After it, the
+          // scene redraws only when the reader drags the timeline or the camera.
+          frameloop={playing && !reduced ? 'always' : 'demand'}
+          camera={{ fov: 30, near: 0.5, far: 160, position: [12, 14, 18] }}
+          touchAction="pan-y"
+          wrapperProps={{ role: 'img', 'aria-label': sceneLabel }}
+          fallback={fallback}
+        >
+          <Scene d={d} />
+        </SceneCanvas>
+      ) : null}
+      {d && hasWebGL() && <GaugeBoards />}
     </div>
   )
 }

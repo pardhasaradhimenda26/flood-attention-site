@@ -9,12 +9,13 @@ vi.mock('../three/useAdaptiveQuality', async (orig) => {
 })
 
 describe('WebGL fallback', () => {
-  it('mounts the static network plan, with real content, when WebGL is unavailable', async () => {
+  it('shows the exported inundation video, with a real poster, when WebGL is unavailable', async () => {
     const { Hero } = await import('./Hero')
     render(<Hero />)
-    const img = await screen.findByRole('img', { name: hero.fallbackLabel }, { timeout: 3000 })
-    // the plan draws the actual network: one path per routing reach at least
-    expect(img.querySelectorAll('path, line, circle').length).toBeGreaterThan(10)
+    const video = (await screen.findByLabelText(hero.fallbackLabel, {}, { timeout: 3000 })) as HTMLVideoElement
+    expect(video.tagName).toBe('VIDEO')
+    expect(video.getAttribute('src')).toMatch(/wayanad\/inundation_T1\.mp4$/)
+    expect(video.getAttribute('poster')).toMatch(/wayanad\/plan\.png$/)
   })
 })
 

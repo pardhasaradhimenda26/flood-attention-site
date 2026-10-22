@@ -1,6 +1,6 @@
 // GENERATED FILE — DO NOT HAND-EDIT.
-// Written by scripts/generate_data.py on 2026-10-14 13:10.
-// Mode: thesis-repo. Source: thesis repository @ eb484da
+// Written by scripts/generate_data.py on 2026-10-22 09:54.
+// Mode: thesis-repo. Source: thesis repository @ 7e4f7bc
 // Re-run the script to update. Any manual change here is overwritten.
 
 export type NetNode = {

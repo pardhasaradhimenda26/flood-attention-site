@@ -1,6 +1,6 @@
 {
   "about": "Inputs behind src/data/results.ts. Copied from the thesis repository by scripts/generate_data.py; reproduce results.ts with `npm run regen-data`.",
-  "thesisCommit": "eb484da81eda9c3cecb064c2cbcc06b9fae5e701",
+  "thesisCommit": "7e4f7bcd143d7f1e9c88eaf03dd23796ea8be753",
   "dataset": {
     "version": "864b79098c",
     "generator": "data/generate_flood_dataset.py",
@@ -187,6 +187,25 @@
       ],
       "python": "3.11.9",
       "torch": "2.13.0+cpu"
+    },
+    {
+      "id": "20261022-094841-88294fdea4-wayanad",
+      "role": "wayanad",
+      "configHash": "88294fdea4",
+      "configPath": "configs/wayanad.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ],
+      "models": [
+        "persistence",
+        "mlp",
+        "gcn",
+        "gat"
+      ],
+      "python": "3.11.9",
+      "torch": "2.13.0+cpu"
     }
   ],
   "files": {
@@ -236,6 +255,80 @@
     "runs/20260831-192438-fb58ec3500-abl_heads2/config.yaml": "bd252b250588f8eb3586e015987e5adbe62c3e730eb9b7f30f3f2f6c5f74be3c",
     "runs/20260831-192438-fb58ec3500-abl_heads2/metrics.csv": "352bd132c00ab0a7084564967b0fbf7086e57fbbdf07e3d389772f97058093e0",
     "runs/20260831-192438-fb58ec3500-abl_heads2/metrics_per_seed.csv": "bf19476246614f687df31c59a3fb42b2485d2f65c5261cae05632deae3664bf0",
-    "runs/20260831-192438-fb58ec3500-abl_heads2/run.json": "d85513dd71435000e127da7f61e5614b3f939592887c1cda57a7fdd4809530f3"
+    "runs/20260831-192438-fb58ec3500-abl_heads2/run.json": "d85513dd71435000e127da7f61e5614b3f939592887c1cda57a7fdd4809530f3",
+    "runs/20261022-094841-88294fdea4-wayanad/attention_scores_wayanad.csv": "eabadf175887cbb913c6c82f52b9632915962d267edccec84020a33d498b635e",
+    "runs/20261022-094841-88294fdea4-wayanad/attention_seed_consistency_wayanad.csv": "a49840bcda0c00ea461a6f7f2ef75784399295223b024819db25add71d203cec",
+    "runs/20261022-094841-88294fdea4-wayanad/config.yaml": "b0facd553e78a53f2584eb0a6985ea29cae6f61677d0d23d7d51444976ee6ac9",
+    "runs/20261022-094841-88294fdea4-wayanad/metrics.csv": "236770f4056d6d7f35d84101395e80011085d173e24da11d321d2617bda9b3b8",
+    "runs/20261022-094841-88294fdea4-wayanad/metrics_per_seed.csv": "ba1e3eb6f73a7bd397d200861accc5c4628c97c2933611baafb499a85e9e5d05",
+    "runs/20261022-094841-88294fdea4-wayanad/run.json": "165f5d918dd80fea5814ad56cd84dc574c0eb16bd2833886d14de8ce733607fe",
+    "wayanad/arrival.csv": "17d9b547dc3e41c3cdd6b42325f3460b76113944a3d496153c7bfacb962c3763",
+    "wayanad/basins.csv": "ec851712bae972085854774f212f3401191a39b41a1787cc3852fb2819ce12dd",
+    "wayanad/centreline.csv": "568b3a41f3ab25f22f788f8601162f9e586418c4ede9a33157166c16d515c2b6",
+    "wayanad/checks.json": "bae79cedee0f4b10659e035a03fee96ab93f0d63328691770d6c873b9b4c6ff9",
+    "wayanad/edges.csv": "1e86741ecee2852933406f0f035e1938188b30fe9f6d21c6aeb2884e352c9331",
+    "wayanad/gate.txt": "a12376de46a736eb47e9d941ffc163ec811fe6be11b7e60915334312ca97295a",
+    "wayanad/nodes.csv": "ae0b76440f1e0853d29d278a5b62036e60977fc5bb3972df9d66715b144ccf85",
+    "wayanad/timeseries.csv": "c382d249c4141a3e76cc4c4cf3d9587daaada283e56d058253cf6884b77982d4"
+  },
+  "wayanad": {
+    "source": {
+      "archive": "HEC-RAS-2D-FINAL-DATASET.zip",
+      "bytes": 4909276930,
+      "sha256": "7511a29510d13e416e641bfc45d5f5f0272e83e7d6de981ab791215cb66a37ee",
+      "events": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7",
+        "H8",
+        "H9",
+        "H10",
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5"
+      ],
+      "train": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7",
+        "H8",
+        "H9",
+        "H10"
+      ],
+      "test": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5"
+      ],
+      "model": "HEC-RAS 7.0.1 2D; T1 = plan p02, the observed 2018 inflow (dataset README)"
+    },
+    "scripts": {
+      "data/extract_wayanad.py": "45b0fd5ecc5f06766ad7fddc6ab708eee007033bceba72b63dee469f56bfd20c",
+      "data/export_wayanad_site.py": "19898861abafa068774d32de1a806629461c283a5bb737db39fe4c686461fedd",
+      "data/make_wayanad_config.py": "cac9ade95ef9ae30951cac26dfc113b38f16f5ab297dbf0c7b718358749d2c7b",
+      "evaluation/wayanad_attention.py": "d3962df6bebea50b5f5a62c03ae02abcc21eec3915e441910d6a401557f6f2b3",
+      "configs/wayanad.yaml": "88294fdea45dd4a744682a0b917f501fe99fb9f854992df091b55449729e27f8"
+    },
+    "siteAssets": {
+      "flood.bin": "ec9611ef393c6887936664069d009e2103369a272c7f6447a7bf691d50c309a8",
+      "inundation_T1.mp4": "e0641fb6053be9e69ffa88e8b6c1886f6871210d0c2bef3fec2c54788c1d9c8f",
+      "plan.png": "3e1a5c16a38c03b2e7d0f483d3378215934bd8eab882a40d24dc74c046eceb3d",
+      "site.json": "685092f8bab3cc15e3bbcaff6c5ff1eec1eed07570b61b43ee91805d297b798d",
+      "terrain.bin": "19e0912eebe550e49e45924b0869a9461705e658428f6678bad588542d695b8f",
+      "wet.bin": "6d27204ac7aa1a23732b34ffdda7477d47b0b954557772849d27d413b48cc002"
+    },
+    "note": "Extracted by data/extract_wayanad.py from the delivered archive (sha256 above); site assets by data/export_wayanad_site.py."
   }
 }

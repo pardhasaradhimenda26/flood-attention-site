@@ -1,147 +1,140 @@
 import { useEffect, useRef, useState } from 'react'
-import { edges, nodes } from '../data/network'
-import { nodeById, routingEdges } from '../lib/graph'
-import { channelAt, halfWidth } from '../lib/terrain'
-import { stormGauges } from '../lib/storm'
+import { W, sections, stormGauges } from '../lib/storm'
 import { useSite } from '../state'
-import { approach } from '../data/content'
+import { approach, tpl } from '../data/content'
 
 /*
-  Act 3's teaching moment: the river, in plan, turns into the graph. Banks
-  fade, the channel collapses to its centreline, the survey lines across the
-  river shrink into nodes, gauge towers become filled nodes, reaches become
-  arrowed edges, and last the two- and three-hop message links appear. One
-  progress value drives everything; it plays once when scrolled into view and
-  can be replayed. Reduced motion shows the before and after side by side.
+  Act 3's teaching moment, on a real place: the Kabini valley as the HEC-RAS
+  model floods it (its maximum depth in the observed 2018 event, in the page's
+  depth ramp) turns into the graph the models see. The flood map fades, the
+  river's centreline gives way to straight reaches between cross-sections, the
+  survey lines across the river shrink into nodes, the gauge towers become
+  filled nodes, reaches become arrowed edges, and last the two- and three-hop
+  message links appear. One progress value drives everything; it plays once
+  when scrolled into view and can be replayed. Reduced motion shows the before
+  and after side by side.
 */
 
-const PAD = 1.2
-const xs = nodes.map((n) => n.pos[0])
-const zs = nodes.map((n) => n.pos[2])
-const minX = Math.min(...xs) - PAD
-const minZ = Math.min(...zs) - PAD
-const W = Math.max(...xs) + PAD - minX
-const H = Math.max(...zs) + PAD - minZ
-const P = (id: string) => {
-  const n = nodeById.get(id)!
-  return [n.pos[0] - minX, n.pos[2] - minZ] as const
+// Plan coordinates: the 25 m grid of plan.png. Sections are on the 50 m grid.
+const S = W.cellM / W.plan.cellM
+const P = (g: [number, number]) => [g[0] * S, g[1] * S] as const
+const pad = 20
+const xs = sections.map((s) => s.grid[0] * S)
+const ys = sections.map((s) => s.grid[1] * S)
+const vb = {
+  x: Math.min(...xs) - pad * 4,
+  y: Math.min(...ys) - pad * 4,
+  w: Math.max(...xs) - Math.min(...xs) + pad * 8,
+  h: Math.max(...ys) - Math.min(...ys) + pad * 8,
 }
-const gauged = new Set(stormGauges.map((g) => g.id))
-const across = new Map(
-  nodes.map((n) => {
-    const c = channelAt(n.pos[0], n.pos[2])
-    return [n.id, { px: -c.dirZ, pz: c.dirX, hw: c.hw }]
-  }),
-)
-const messageEdges = edges.filter((e) => !e.routing)
+const unit = vb.w / 300 // stroke unit so lines read the same at any size
 
-/** 0..1 within [a, b] of the overall progress, eased. */
+function dirAt(i: number) {
+  const a = sections[Math.max(0, i - 1)].grid
+  const b = sections[Math.min(sections.length - 1, i + 1)].grid
+  const dx = b[0] - a[0]
+  const dy = b[1] - a[1]
+  const l = Math.hypot(dx, dy) || 1
+  return [dx / l, dy / l] as const
+}
+
 function phase(p: number, a: number, b: number) {
   const t = Math.min(1, Math.max(0, (p - a) / (b - a)))
   return t * t * (3 - 2 * t)
 }
 
+const centre = W.centreline.map((g) => P(g))
+const centrePath = centre.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ')
+
 function Plan({ p, label }: { p: number; label: string }) {
-  const bank = 1 - phase(p, 0.0, 0.3)
-  const collapse = phase(p, 0.15, 0.55)
+  const place = 1 - phase(p, 0.0, 0.35)
+  const toEdges = phase(p, 0.25, 0.6)
   const toNode = phase(p, 0.35, 0.7)
   const arrows = phase(p, 0.6, 0.85)
   const message = phase(p, 0.8, 1)
+  const base = `${import.meta.env.BASE_URL}wayanad/`
+  const id = 'rg-arrow'
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label={label}>
+    <svg viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`} className="block h-auto w-full" role="img" aria-label={label}>
       <defs>
-        <marker id="rg-arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <marker id={id} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
           <path d="M0 0 L10 5 L0 10 z" fill="var(--ink)" />
         </marker>
       </defs>
 
-      {/* floodplain and banks */}
-      <g opacity={bank}>
-        {routingEdges.map((e) => {
-          const [x1, y1] = P(e.source)
-          const [x2, y2] = P(e.target)
-          const w = 2 * (halfWidth(nodeById.get(e.target)!.channelWidthM) + 0.55)
-          return <line key={`f${e.id}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--paper-inset)" strokeWidth={w} strokeLinecap="round" />
-        })}
-        {routingEdges.map((e) => {
-          const [x1, y1] = P(e.source)
-          const [x2, y2] = P(e.target)
-          const w = 2 * halfWidth(nodeById.get(e.target)!.channelWidthM) + 0.08
-          return <line key={`b${e.id}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--ink-soft)" strokeWidth={w} strokeLinecap="round" />
+      {/* the place: the modelled flood at its greatest extent */}
+      <image href={`${base}plan.png`} x={0} y={0} width={W.plan.width} height={W.plan.height} opacity={place} style={{ imageRendering: 'pixelated' }} />
+      <path d={centrePath} fill="none" stroke="var(--ink)" strokeWidth={unit * 0.8} opacity={0.6 * (1 - toEdges)} />
+
+      {/* straight reaches between cross-sections */}
+      <g opacity={toEdges}>
+        {sections.slice(1).map((s, i) => {
+          const [x1, y1] = P(sections[i].grid)
+          const [x2, y2] = P(s.grid)
+          return <line key={`e${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="var(--ink)" strokeWidth={unit * 0.9} />
         })}
       </g>
-
-      {/* the channel: true relative width, collapsing to its centreline */}
-      {routingEdges.map((e) => {
-        const [x1, y1] = P(e.source)
-        const [x2, y2] = P(e.target)
-        const full = 2 * halfWidth(nodeById.get(e.target)!.channelWidthM)
-        return (
-          <line
-            key={`c${e.id}`}
-            x1={x1}
-            y1={y1}
-            x2={x2}
-            y2={y2}
-            stroke={collapse < 0.5 ? 'var(--w3)' : 'var(--ink)'}
-            strokeWidth={full + (0.05 - full) * collapse}
-            strokeLinecap="round"
-            markerMid={undefined}
-          />
-        )
-      })}
-
-      {/* edges get direction */}
       <g opacity={arrows}>
-        {routingEdges.map((e) => {
-          const [x1, y1] = P(e.source)
-          const [x2, y2] = P(e.target)
-          const mx = x1 + (x2 - x1) * 0.62
-          const my = y1 + (y2 - y1) * 0.62
-          return <line key={`a${e.id}`} x1={x1 + (x2 - x1) * 0.4} y1={y1 + (y2 - y1) * 0.4} x2={mx} y2={my} stroke="var(--ink)" strokeWidth={0.05} markerEnd="url(#rg-arrow)" />
+        {sections.slice(1).map((s, i) => {
+          const [x1, y1] = P(sections[i].grid)
+          const [x2, y2] = P(s.grid)
+          return (
+            <line
+              key={`a${i}`}
+              x1={x1 + (x2 - x1) * 0.4}
+              y1={y1 + (y2 - y1) * 0.4}
+              x2={x1 + (x2 - x1) * 0.62}
+              y2={y1 + (y2 - y1) * 0.62}
+              stroke="var(--ink)"
+              strokeWidth={unit * 0.9}
+              markerEnd={`url(#${id})`}
+            />
+          )
         })}
       </g>
-
-      {/* message links two and three hops long */}
       <g opacity={message}>
-        {messageEdges.map((e) => {
-          const [x1, y1] = P(e.source)
-          const [x2, y2] = P(e.target)
-          const dx = x2 - x1
-          const dy = y2 - y1
-          const len = Math.hypot(dx, dy) || 1
-          const bend = 0.25 + e.hops * 0.3
-          const cx = (x1 + x2) / 2 - (dy / len) * bend
-          const cy = (y1 + y2) / 2 + (dx / len) * bend
-          return <path key={`m${e.id}`} d={`M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}`} fill="none" stroke="var(--ink-soft)" strokeWidth={0.03} strokeDasharray="0.12 0.1" />
-        })}
+        {[2, 3].flatMap((hops) =>
+          sections.slice(hops).map((s, i) => {
+            const [x1, y1] = P(sections[i].grid)
+            const [x2, y2] = P(s.grid)
+            const dx = x2 - x1
+            const dy = y2 - y1
+            const len = Math.hypot(dx, dy) || 1
+            const bend = len * (0.12 + 0.06 * hops)
+            const cx = (x1 + x2) / 2 - (dy / len) * bend
+            const cy = (y1 + y2) / 2 + (dx / len) * bend
+            return <path key={`m${hops}-${i}`} d={`M${x1} ${y1} Q${cx} ${cy} ${x2} ${y2}`} fill="none" stroke="var(--ink-soft)" strokeWidth={unit * 0.6} strokeDasharray={`${unit * 2} ${unit * 1.6}`} />
+          }),
+        )}
       </g>
 
       {/* survey lines across the river shrink into nodes */}
-      {nodes.map((n) => {
-        if (gauged.has(n.id)) return null
-        const [x, y] = P(n.id)
-        const a = across.get(n.id)!
-        const r = (a.hw + 0.2) * (1 - toNode)
+      {sections.map((s, i) => {
+        if (s.gauged) return null
+        const [x, y] = P(s.grid)
+        const [dx, dy] = dirAt(i)
+        const half = ((s.width_m / 2 / W.plan.cellM) + 6) * (1 - toNode)
         return (
-          <g key={`s${n.id}`}>
-            {r > 0.01 && <line x1={x - a.px * r} y1={y - a.pz * r} x2={x + a.px * r} y2={y + a.pz * r} stroke="var(--ink)" strokeWidth={0.04} />}
-            <circle cx={x} cy={y} r={0.16 * toNode} fill="var(--paper)" stroke="var(--ink)" strokeWidth={0.05 * toNode} />
+          <g key={`s${s.id}`}>
+            {half > 0.5 && <line x1={x + dy * half} y1={y - dx * half} x2={x - dy * half} y2={y + dx * half} stroke="var(--ink)" strokeWidth={unit * 0.8} />}
+            <circle cx={x} cy={y} r={unit * 2.6 * toNode} fill="var(--paper)" stroke="var(--ink)" strokeWidth={unit * 0.8 * toNode} />
           </g>
         )
       })}
 
       {/* gauge towers become filled nodes */}
       {stormGauges.map((g) => {
-        const [x, y] = P(g.id)
-        const a = across.get(g.id)!
-        const ox = x + a.px * (a.hw + 0.35) * (1 - toNode)
-        const oy = y + a.pz * (a.hw + 0.35) * (1 - toNode)
-        const s = 0.42 - 0.12 * toNode
+        const k = sections.findIndex((s) => s.id === g.id)
+        const [x, y] = P(g.section.grid)
+        const [dx, dy] = dirAt(k)
+        const off = ((g.section.width_m / 2 / W.plan.cellM) + 10) * (1 - toNode)
+        const ox = x - dy * off
+        const oy = y + dx * off
+        const sz = unit * (7 - 2 * toNode)
         return (
           <g key={`g${g.id}`}>
-            <rect x={ox - s / 2} y={oy - s / 2} width={s} height={s} rx={(s / 2) * toNode} fill="var(--ink)" />
-            <text x={ox} y={oy - s / 2 - 0.18} textAnchor="middle" fontSize={0.42} className="num" fill="var(--ink)">
+            <rect x={ox - sz / 2} y={oy - sz / 2} width={sz} height={sz} rx={(sz / 2) * toNode} fill="var(--ink)" />
+            <text x={ox} y={oy - sz / 2 - unit * 2} textAnchor="middle" fontSize={unit * 7} className="num" fill="var(--ink)">
               {g.name}
             </text>
           </g>
@@ -158,7 +151,6 @@ export function RiverToGraph() {
   const ref = useRef<HTMLDivElement>(null)
   const played = useRef(false)
 
-  // Play once when the figure is mostly in view.
   useEffect(() => {
     const el = ref.current
     if (!el || reduced) return
@@ -190,27 +182,30 @@ export function RiverToGraph() {
   }, [run, reduced])
 
   const m = approach.morph
+  const vars = { n: sections.length, g: stormGauges.length, km: (sections[sections.length - 1]?.s_m / 1000).toFixed(0) }
+  const before = tpl(m.beforeLabel, vars)
+  const after = tpl(m.afterLabel, vars)
   if (reduced) {
     return (
       <figure className="grid gap-6 md:grid-cols-2">
         <div>
           <p className="mb-2 text-small font-semibold text-ink">{m.before}</p>
-          <Plan p={0} label={m.beforeLabel} />
+          <Plan p={0} label={before} />
         </div>
         <div>
           <p className="mb-2 text-small font-semibold text-ink">{m.after}</p>
-          <Plan p={1} label={m.afterLabel} />
+          <Plan p={1} label={after} />
         </div>
-        <figcaption className="max-w-measure text-small text-ink-soft md:col-span-2">{m.caption}</figcaption>
+        <figcaption className="max-w-measure text-small text-ink-soft md:col-span-2">{tpl(m.caption, vars)}</figcaption>
       </figure>
     )
   }
   return (
     <figure ref={ref}>
-      <Plan p={p} label={p < 0.5 ? m.beforeLabel : m.afterLabel} />
+      <Plan p={p} label={p < 0.5 ? before : after} />
       <div className="mt-3 flex flex-wrap items-baseline gap-x-6 gap-y-2">
         <p className="text-small text-ink" aria-live="polite">
-          {p < 0.3 ? m.stageRiver : p < 0.8 ? m.stageMid : m.stageGraph}
+          {tpl(p < 0.3 ? m.stageRiver : p < 0.8 ? m.stageMid : m.stageGraph, vars)}
         </p>
         <button
           type="button"
@@ -220,7 +215,7 @@ export function RiverToGraph() {
           {m.replay}
         </button>
       </div>
-      <figcaption className="mt-3 max-w-measure text-small text-ink-soft">{m.caption}</figcaption>
+      <figcaption className="mt-3 max-w-measure text-small text-ink-soft">{tpl(m.caption, vars)}</figcaption>
     </figure>
   )
 }

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { hero, site } from '../data/content'
-import { NetworkPlan } from '../components/NetworkPlan'
+import { FloodVideo } from '../components/FloodVideo'
 import { hasWebGL } from '../three/useAdaptiveQuality'
 
 const RiverScene = lazy(() => import('../three/RiverScene'))
@@ -8,9 +8,9 @@ const RiverScene = lazy(() => import('../three/RiverScene'))
 const HeroTimeline = lazy(() => import('../components/HeroTimeline'))
 
 /*
-  Act 1. No jargon: the headline, the valley, one question, and the storm
-  timeline. The four gauge towers answer for four places; nothing answers for
-  the rest of the river.
+  Act 1. No jargon: the headline, the Wayanad valley in flood, one question,
+  and the flood timeline. The four gauge towers answer for four places;
+  nothing answers for the rest of the river.
 */
 export function Hero() {
   // null until probed. The probe creates a WebGL context, so it runs in the
@@ -38,15 +38,15 @@ export function Hero() {
       <div className="relative h-sceneSm lg:absolute lg:inset-0 lg:h-auto">
         {gl !== false ? (
           ready ? (
-            <Suspense fallback={<NetworkPlan mode="wave" still className="h-full w-full opacity-30 lg:ml-auto lg:w-3/5 lg:py-16" />}>
+            <Suspense fallback={<FloodVideo still className="h-full w-full opacity-30 lg:ml-auto lg:w-3/5 lg:py-16" />}>
               <RiverScene />
             </Suspense>
           ) : (
-            <NetworkPlan mode="wave" still className="h-full w-full opacity-30 lg:ml-auto lg:w-3/5 lg:py-16" />
+            <FloodVideo still className="h-full w-full opacity-30 lg:ml-auto lg:w-3/5 lg:py-16" />
           )
         ) : (
-          <div role="img" aria-label={hero.fallbackLabel} className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16">
-            <NetworkPlan mode="wave" className="h-full w-full" />
+          <div className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16">
+            <FloodVideo className="h-full w-full" />
           </div>
         )}
       </div>

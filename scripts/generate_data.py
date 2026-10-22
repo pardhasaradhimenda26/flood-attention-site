@@ -720,8 +720,17 @@ WEEK4_RUNS = [
     "20260830-150740-092b9d652a-repro",       # reproducibility re-run
 ]
 RUN_FILES = ["run.json", "config.yaml", "metrics.csv", "metrics_per_seed.csv",
-             "attention_scores.csv", "attention_seed_consistency.csv"]
+             "attention_scores.csv", "attention_seed_consistency.csv",
+             "attention_scores_wayanad.csv", "attention_seed_consistency_wayanad.csv"]
 DATASET_FILES = ["nodes.csv", "edges.csv", "basins.csv"]
+# The Wayanad HEC-RAS 2D port (WAYANAD_FINDINGS.md). The extracted graph and
+# its measured travel times, the checks and the information-test log are
+# committed in full: the brief's reproducibility rules do not relax because
+# the data came from someone else.
+WAYANAD_FILES = ["nodes.csv", "edges.csv", "basins.csv", "timeseries.csv", "checks.json", "arrival.csv", "centreline.csv"]
+WAYANAD_SCRIPTS = ["data/extract_wayanad.py", "data/export_wayanad_site.py", "data/make_wayanad_config.py",
+                   "evaluation/wayanad_attention.py", "configs/wayanad.yaml"]
+SITE_ASSETS = os.path.join(SITE, "public", "wayanad")
 
 
 def sha256_file(path):
@@ -751,6 +760,9 @@ def sync_provenance(repo):
     wanted = [(os.path.basename(main), "main")]
     wanted += [(r_, "ablation") for r_ in abl_ids if r_ != os.path.basename(main)]
     wanted += [(r_, "week4") for r_ in WEEK4_RUNS]
+    wy_runs = sorted(d for d in os.listdir(os.path.join(repo, "results")) if d.endswith("-wayanad"))
+    if wy_runs:
+        wanted.append((wy_runs[-1], "wayanad"))
 
     if os.path.isdir(PROV):
         shutil.rmtree(PROV)
@@ -772,6 +784,13 @@ def sync_provenance(repo):
     ds = os.path.join(repo, "flood_routing_dataset")
     for f in DATASET_FILES:
         copy(os.path.join(ds, f), f"dataset/{f}")
+    wy = os.path.join(repo, "wayanad_dataset")
+    if os.path.isdir(wy):
+        for f in WAYANAD_FILES:
+            copy(os.path.join(wy, f), f"wayanad/{f}")
+        gate = os.path.join(repo, "results", "wayanad_gate.txt")
+        if os.path.exists(gate):
+            copy(gate, "wayanad/gate.txt")
 
     runs = []
     for run_id, role in wanted:
@@ -817,6 +836,15 @@ def sync_provenance(repo):
         "runs": runs,
         "files": dict(sorted(files.items())),
     }
+    if os.path.isdir(wy):
+        with open(os.path.join(wy, "checks.json"), encoding="utf-8") as fh:
+            wchecks = json.load(fh)
+        manifest["wayanad"] = {
+            "source": wchecks.get("source"),
+            "scripts": {f: sha256_file(os.path.join(repo, f)) for f in WAYANAD_SCRIPTS if os.path.exists(os.path.join(repo, f))},
+            "siteAssets": {f: sha256_file(os.path.join(SITE_ASSETS, f)) for f in sorted(os.listdir(SITE_ASSETS))} if os.path.isdir(SITE_ASSETS) else {},
+            "note": "Extracted by data/extract_wayanad.py from the delivered archive (sha256 above); site assets by data/export_wayanad_site.py.",
+        }
     with open(os.path.join(PROV, "MANIFEST.json"), "w", encoding="utf-8", newline="\n") as fh:
         json.dump(manifest, fh, indent=2, ensure_ascii=False)
         fh.write("\n")
@@ -1310,6 +1338,8 @@ def build_results(manifest):
                   interval=ui, note="mean per-pair relative change, as in RESULTS.md",
                   supersedes="one-sample t over {} pairs as if independent, p = {:.3f}".format(*naive["undirected"]))
 
+    wy_rollout, wy_info = build_wayanad(M, manifest, hash_of)
+
     for id_, label, val, unit, group, note in PENDING_ALWAYS:
         M.add(id_, label, val, unit, "pending", group=group, derivation="recomputed", note=note)
 
@@ -1320,8 +1350,172 @@ def build_results(manifest):
                   "seeds": x["seeds"]} for x in manifest["runs"]] if manifest else [],
         "bootstrap": {"draws": BOOT_DRAWS, "seed": BOOT_SEED, "level": 0.95,
                       "unit": "basins and seeds resampled independently"},
+        "wayanad": wy_info,
     }
-    return M.items, rollout, basin_cmp, att_basins, ablations, prov
+    return M.items, rollout, basin_cmp, att_basins, ablations, prov, wy_rollout
+
+
+# ------------------------------------------------------------------ wayanad
+# First numbers from the Wayanad HEC-RAS 2D port. Brief §7: a working port and
+# first numbers, not validated findings, so nothing here renders better than
+# 'qualified', and validation against observations is pending.
+
+def _gate_rows(path):
+    """+GRAPH R² per event and lead from the information-test log."""
+    import re
+    out = {}
+    if not os.path.exists(path):
+        return out
+    for line in open(path, encoding="utf-8"):
+        if not line.startswith("wy_"):
+            continue
+        toks = line.split()
+        pairs = re.findall(r"(-?\d+\.\d+)([+-]\d+\.\d+)", " ".join(toks[3:]))
+        out[toks[0]] = [float(g) for g, _ in pairs]
+    return out
+
+
+def build_wayanad(M, manifest, hash_of):
+    run = next((x["id"] for x in manifest["runs"] if x["role"] == "wayanad"), None) if manifest else None
+    wyd = os.path.join(PROV, "wayanad")
+    if not run or not os.path.exists(os.path.join(wyd, "checks.json")):
+        M.add("wy_gat_vs_gcn", "Wayanad: GAT over GCN, held-out events", "—", "%", "pending", group="wayanad",
+              derivation="recomputed", note="no Wayanad run in provenance/")
+        return None, None
+    with open(os.path.join(wyd, "checks.json"), encoding="utf-8") as fh:
+        ch = json.load(fh)
+    ver = ch["source"]["sha256"][:10]
+    cfg = hash_of(run)
+    ex = dict(group="wayanad", derivation="read", source="provenance/wayanad/checks.json",
+              run=f"data/extract_wayanad.py on archive {ver}", config_hash=ver)
+    tt = ch["travel_time"]
+    cel = tt["celerity_ms"]
+    nodes = read_csv(os.path.join(wyd, "nodes.csv"))
+    n_sec = len([x for x in nodes if x["basin_id"] == "wy_T1"])
+    n_gauged = len([x for x in nodes if x["basin_id"] == "wy_T1" and truthy(x["is_gauged"])])
+    cl = ch["cells"]
+    M.add("wy_reach_km", "Wayanad: modelled reach along its centreline", r(ch["centreline"]["length_km"], 1), "km", "qualified",
+          qualifier="centreline traced through cell positions recovered from rasters; the static files were not delivered", **ex)
+    M.add("wy_cells_located", "Wayanad: cells located by their own raster pixels", r(100 * cl["cells_located_by_own_pixels"] / cl["cells"], 1), "%",
+          "qualified", qualifier=f"{cl['cells_placed_by_similarity']} of {cl['cells']} cells placed by similarity instead", **ex)
+    M.add("wy_sections", "Wayanad: cross-sections extracted", n_sec, None, "qualified",
+          qualifier=f"spacing set so every reach takes at least one hourly step; the brief asked for 25 to 40; {n_gauged} gauged, {n_sec - n_gauged} ungauged", **ex)
+    M.add("wy_travel_h", "Wayanad: measured flood travel time over the reach", r(sum(tt["per_edge_mean_h"]), 2), "h", "qualified",
+          qualifier=f"mean of cross-correlation ({ch['reach_travel_time_h_median']['xcorr']} h) and peak arrival ({ch['reach_travel_time_h_median']['peak_arrival']} h), which disagree by {tt['xcorr_vs_peak_mean_abs_diff_h']} h per reach on average", **ex)
+    M.add("wy_celerity", "Wayanad: implied flood-wave celerity per reach", f"{min(cel):.2f}–{max(cel):.2f}", "m/s", "qualified",
+          qualifier="within the brief's 0.5 to 4 m/s sanity range after merging reaches in a floodplain storage zone", **ex)
+    M.add("wy_tt_length_r", "Wayanad: travel time vs reach length, r", f"{tt['r_reach_length_travel_time']:+.3f}", None, "qualified",
+          qualifier="correlated but not perfectly; six reaches", **ex)
+    worst = max(v["q_last_vs_outflow_rel_rmse"] for v in ch["mass"].values())
+    M.add("wy_outflow_check", "Wayanad: outlet discharge vs the model's outflow record, worst event", r(100 * worst, 1), "%", "qualified",
+          qualifier="relative RMSE; an independent check of the volume-based discharge", **ex)
+
+    gate = _gate_rows(os.path.join(wyd, "gate.txt"))
+    if gate:
+        g6 = sorted(v[1] for v in gate.values() if len(v) > 1)
+        M.add("wy_gate_r2_6h", "Wayanad: ungauged discharge 6 h ahead from upstream gauges, R²", r(g6[len(g6) // 2], 3), None, "qualified",
+              qualifier=f"median over 15 events, ridge regression, out of sample; range {g6[0]:.2f} to {g6[-1]:.2f}; the test's baseline has no varying input here, so its ΔR² is not meaningful",
+              group="wayanad", derivation="read", source="provenance/wayanad/gate.txt", run=f"evaluation/gate_information_test.py on archive {ver}", config_hash=ver)
+
+    kw = dict(group="wayanad", derivation="recomputed", source=prov_rel(run, "metrics_per_seed.csv"), run=run, config_hash=cfg)
+    gat, split = cells_from(run, "gat")
+    gcn, _ = cells_from(run, "gcn")
+    mlp, _ = cells_from(run, "mlp")
+    held = sorted(b for b in split if split[b] == "held_out")
+    train = sorted(b for b in split if split[b] != "held_out")
+    seeds = sorted({s_ for _, s_ in gat})
+    caveat = f"{len(held)} held-out events, {len(seeds)} seeds, {n_sec - n_gauged} ungauged sections; first run on model output"
+    st = pooled_improvement(gat, gcn)
+    lo, hi = boot_interval(st, held, seeds)
+    iv = {"lo": r(lo, 3), "hi": r(hi, 3), "level": 0.95,
+          "method": f"clustered bootstrap, {BOOT_DRAWS} draws resampling {len(held)} events and {len(seeds)} seeds with replacement; percentile"}
+    per_event = {b: 100 * (mean(gcn[(b, s_)] for s_ in seeds) - mean(gat[(b, s_)] for s_ in seeds)) / mean(gcn[(b, s_)] for s_ in seeds) for b in held}
+    worst_b = min(per_event, key=per_event.get)
+    M.add("wy_gat_vs_gcn", "Wayanad: GAT over GCN, ungauged discharge RMSE, held-out events", f"{st(held, seeds):+.1f}", "%", "qualified",
+          qualifier=f"{fmt_ci(iv, '%')}; {caveat}; {worst_b.replace('wy_', '')} goes the other way ({per_event[worst_b]:+.1f}%)",
+          interval=iv, note="scored over each held-out event's whole record; positive = GAT better", **kw)
+    stt = pooled_improvement(gat, gcn)
+    lo2, hi2 = boot_interval(stt, train, seeds)
+    iv2 = {"lo": r(lo2, 3), "hi": r(hi2, 3), "level": 0.95, "method": iv["method"].replace(f"{len(held)} events", f"{len(train)} events")}
+    M.add("wy_gat_vs_gcn_train", "Wayanad: GAT over GCN, training events' final 20%", f"{stt(train, seeds):+.1f}", "%", "qualified",
+          qualifier=f"{fmt_ci(iv2, '%')}; recession only (the harness's test block); not the comparison that matters", interval=iv2, **kw)
+    if mlp:
+        sm = pooled_improvement(gat, mlp)
+        lo3, hi3 = boot_interval(sm, held, seeds)
+        iv3 = {"lo": r(lo3, 3), "hi": r(hi3, 3), "level": 0.95, "method": iv["method"]}
+        M.add("wy_gat_vs_mlp", "Wayanad: GAT over graph-blind MLP, held-out events", f"{sm(held, seeds):+.1f}", "%", "qualified",
+              qualifier=f"{fmt_ci(iv3, '%')}; the MLP has no upstream information at an ungauged section", interval=iv3, **kw)
+    M.add("wy_gat_rmse", "Wayanad: GAT ungauged discharge RMSE, held-out events", r(mean(gat[(b, s_)] for b in held for s_ in seeds), 1), "m³/s",
+          "qualified", qualifier=caveat, **kw)
+
+    ap = os.path.join(run_dir(run), "attention_scores_wayanad.csv")
+    if os.path.exists(ap):
+        a = read_csv(ap)
+        cell = {(x["basin"], int(x["seed"])): x for x in a}
+        ah = [b for b in held if any(k[0] == b for k in cell)]
+
+        def col(c):
+            return lambda bs, ss: mean(float(cell[(b, s_)][c]) for b in bs for s_ in ss)
+
+        akw = dict(group="wayanad", derivation="recomputed", source=prov_rel(run, "attention_scores_wayanad.csv"), run=run, config_hash=cfg)
+        conf = col("confound_length_r")(ah, seeds)
+        cons = read_csv(os.path.join(run_dir(run), "attention_seed_consistency_wayanad.csv"))
+        seed_r = mean(float(x["mean_r"]) for x in cons if x["basin"] in ah)
+        nullp = col("null_p95_all")(ah, seeds)
+        v = col("strat_r_all")(ah, seeds)
+        lo, hi = boot_interval(col("strat_r_all"), ah, seeds)
+        ivr = {"lo": r(lo, 3), "hi": r(hi, 3), "level": 0.95, "method": iv["method"]}
+        M.add("wy_att_tt_r", "Wayanad: attention vs measured travel time, stratified r", f"{v:+.3f}", None, "qualified",
+              qualifier=(f"inside the permutation null, whose 95th percentile is {nullp:+.3f} with only 15 edges per event; "
+                         f"reach-length baseline scores {conf:+.3f}; seeds agree at {seed_r:+.3f}; "
+                         f"the bootstrap {fmt_ci_r(ivr)} is narrow only because every event shares one graph and one measured answer key"),
+              interval=ivr, note="held-out events; strata = hop count × target in-degree (chain adaptation)", **akw)
+        M.add("wy_att_confound", "Wayanad: reach-length confound baseline", f"{conf:+.3f}", None, "qualified",
+              qualifier="the same statistic with reach length, a legal model input, in place of attention", **akw)
+        gst = lambda bs, ss: col("strat_r_all")(bs, ss) - col("confound_length_r")(bs, ss)
+        glo, ghi = boot_interval(gst, ah, seeds)
+        ivg = {"lo": r(glo, 3), "hi": r(ghi, 3), "level": 0.95, "method": iv["method"]}
+        M.add("wy_att_vs_confound", "Wayanad: attention minus the reach-length baseline", f"{gst(ah, seeds):+.3f}", None, "qualified",
+              qualifier=fmt_ci_r(ivg), interval=ivg, **akw)
+        M.add("wy_att_seed_r", "Wayanad: attention agreement between seeds", f"{seed_r:+.3f}", None, "qualified",
+              qualifier="held-out events; patterns only moderately stable",
+              **{**akw, "source": prov_rel(run, "attention_seed_consistency_wayanad.csv")})
+    M.add("wy_validation", "Wayanad: model output checked against observed gauges or satellite extent", "—", None, "pending",
+          group="wayanad", derivation="recomputed", note="the supplier's README: not yet validated against observations")
+
+    # Per-step error on the held-out events, gauged and ungauged, with intervals.
+    rows = read_csv(os.path.join(run_dir(run), "metrics_per_seed.csv"))
+    steps = sorted({int(x["rollout_step"]) for x in rows})
+    panels = {}
+    for grp in ("gauged", "ungauged"):
+        panel = []
+        for model in ("persistence", "mlp", "gcn", "gat"):
+            series = {"model": model, "status": "verified", "values": [], "mae": [], "lo": [], "hi": []}
+            ok = False
+            for k in steps:
+                cellk = {(x["basin"], int(x["seed"])): (float(x["rmse"]), float(x["mae"])) for x in rows
+                         if x["model"] == model and x["variable"] == "discharge_m3s" and x["node_group"] == grp
+                         and int(x["rollout_step"]) == k and x["basin"] in held}
+                if not cellk:
+                    continue
+                ok = True
+                ss_ = sorted({s_ for _, s_ in cellk})
+                stat_k = lambda bs, sx, c=cellk: mean(c[(b, s_)][0] for b in bs for s_ in sx)
+                lo_k, hi_k = boot_interval(stat_k, held, ss_, draws=2000)
+                series["values"].append(r(stat_k(held, ss_), 3))
+                series["mae"].append(r(mean(v_[1] for v_ in cellk.values()), 3))
+                series["lo"].append(r(lo_k, 3))
+                series["hi"].append(r(hi_k, 3))
+            if ok:
+                panel.append(series)
+        panels[grp] = panel
+    wy_rollout = {"variable": "discharge_m3s", "unit": "m³/s", "steps": steps, "run": run, "configHash": cfg,
+                  "events": [b.replace("wy_", "") for b in held], "panels": panels}
+    stamp = run.split("-")[0]
+    info = {"runId": run, "configHash": cfg, "runDate": f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:8]}", "archive": ch["source"]["archive"],
+            "archiveSha256": ch["source"]["sha256"], "model": ch["source"]["model"],
+            "events": {"train": ch["source"]["train"], "test": ch["source"]["test"]}, "heroEvent": "T1 (plan p02, observed 2018 inflow)"}
+    return wy_rollout, info
 
 
 # -------------------------------------------------------------------- emit
@@ -1504,11 +1698,35 @@ export type Ablation = {
   attnR: number
 }
 
+export type WayanadSeries = RolloutSeries & { mae: number[]; lo: number[]; hi: number[] }
+
+export type WayanadRollout = {
+  variable: string
+  unit: string
+  steps: number[]
+  run: string
+  configHash: string | null
+  events: string[]
+  panels: { gauged: WayanadSeries[]; ungauged: WayanadSeries[] }
+} | null
+
+export type WayanadInfo = {
+  runId: string
+  configHash: string | null
+  runDate: string
+  archive: string
+  archiveSha256: string
+  model: string
+  events: { train: string[]; test: string[] }
+  heroEvent: string
+} | null
+
 export type Provenance = {
   thesisCommit: string | null
   datasetVersion: string | null
   runs: { id: string; role: string; configHash: string | null; configPath: string | null; seeds: number[] | null }[]
   bootstrap: { draws: number; seed: number; level: number; unit: string }
+  wayanad: WayanadInfo
 }
 """
 
@@ -1529,14 +1747,15 @@ def write_results():
     else:
         print("[generate_data] provenance/MANIFEST.json missing; every result will be pending")
         digest = "none"
-    metrics, rollout, cmp_, att_b, abl, prov = build_results(manifest)
+    metrics, rollout, cmp_, att_b, abl, prov, wy_roll = build_results(manifest)
     body = RESULTS_TYPES + "\n"
     body += f"export const provenance: Provenance = {ts_literal(prov)}\n\n"
     body += f"export const metrics: Metric[] = {ts_literal(metrics)}\n\n"
     body += f"export const rollout: Rollout = {ts_literal(rollout)}\n\n"
     body += f"export const basinComparison: BasinComparison = {ts_literal(cmp_)}\n\n"
     body += f"export const attentionByBasin: AttentionByBasin = {ts_literal(att_b)}\n\n"
-    body += f"export const ablations: Ablation[] | null = {ts_literal(abl)}\n"
+    body += f"export const ablations: Ablation[] | null = {ts_literal(abl)}\n\n"
+    body += f"export const wayanadRollout: WayanadRollout = {ts_literal(wy_roll)}\n"
     write_ts(os.path.join(OUT_DIR, "results.ts"), RESULTS_HEADER.format(digest=digest), body)
     counts = defaultdict(int)
     for m in metrics:
@@ -1600,11 +1819,10 @@ def main():
     body += f"export const problemHydrograph: ProblemHydrograph = {ts_literal(hydro)}\n\n"
     body += f"export const modelWindow: ModelWindow = {ts_literal(window)}\n"
     write_ts(os.path.join(OUT_DIR, "network.ts"), HEADER.format(when=when, mode=mode, source=source), body)
-    # The hero storm is its own module so it loads with the hero's lazy chunks,
-    # not with the first paint.
-    storm_json = json.dumps(storm, ensure_ascii=False, separators=(",", ":"))
-    storm_body = STORM_TYPES + f"\nexport const stormEvent: StormEvent | null = {storm_json}\n"
-    write_ts(os.path.join(OUT_DIR, "storm.ts"), HEADER.format(when=when, mode=mode, source=source), storm_body)
+    # The hero no longer plays a synthetic storm: it shows the Wayanad HEC-RAS
+    # flood (src/data/wayanad.json, written by the thesis repo's
+    # data/export_wayanad_site.py). pick_storm is kept for the record.
+    del storm
     print(f"[generate_data] mode={mode} nodes={len(net['nodes'])} edges={len(net['edges'])} "
           f"attention={'yes' if attention else 'no'}")
 

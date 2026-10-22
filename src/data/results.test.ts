@@ -104,6 +104,18 @@ describe('results.ts: research-integrity rules', () => {
     for (const r of rows) expect(r.seedRangePct[0]).toBeLessThanOrEqual(r.seedRangePct[1])
   })
 
+  it('renders nothing from the Wayanad port better than qualified, and keeps validation pending (brief §7)', () => {
+    const wy = metrics.filter((m) => m.group === 'wayanad')
+    expect(wy.length).toBeGreaterThan(5)
+    for (const m of wy) expect(m.status, m.id).not.toBe('verified')
+    expect(get('wy_validation').status).toBe('pending')
+    const att = get('wy_att_tt_r').qualifier ?? ''
+    expect(att).toContain(String(get('wy_att_confound').value))
+    expect(att).toMatch(/permutation null/)
+    expect(provenance.wayanad?.archiveSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(provenance.wayanad?.runId).toMatch(/-wayanad$/)
+  })
+
   it('names the thesis commit, dataset version and main run', () => {
     expect(provenance.thesisCommit).toMatch(/^[0-9a-f]{40}$/)
     expect(provenance.datasetVersion).toMatch(/^[0-9a-f]{10}$/)

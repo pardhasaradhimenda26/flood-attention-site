@@ -25,3 +25,6 @@ dist-ssr
 scripts/__pycache__/
 __pycache__/
 .claude/
+
+# The delivered Wayanad archive (4.9 GB): never committed; its sha256 is in provenance/MANIFEST.json
+HEC-RAS-2D-FINAL-DATASET.zip

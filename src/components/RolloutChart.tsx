@@ -2,6 +2,10 @@ import { useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { scaleLinear, scaleLog } from 'd3-scale'
 import { line } from 'd3-shape'
 import { rollout, type ModelKey, type RolloutSeries } from '../data/results'
+
+/** A series may carry MAE and a 95% interval per step (the Wayanad run does). */
+type Series = RolloutSeries & { mae?: number[]; lo?: number[]; hi?: number[] }
+type RolloutData = { unit: string; steps: number[]; panels: { gauged: Series[]; ungauged: Series[] } }
 import { useMeasure } from '../lib/useMeasure'
 import { fmt } from '../lib/format'
 import { logTicks, spreadLabels } from '../lib/chart'
@@ -27,12 +31,12 @@ function Mark({ shape, cx, cy }: { shape: string; cx: number; cy: number }) {
   return <circle cx={cx} cy={cy} r={4.5} fill="var(--ink)" />
 }
 
-function Panel({ title, series, steps, cursor, setCursor }: { title: string; series: RolloutSeries[]; steps: number[]; cursor: number | null; setCursor: (c: number | null) => void }) {
+function Panel({ title, series, steps, cursor, setCursor }: { title: string; series: Series[]; steps: number[]; cursor: number | null; setCursor: (c: number | null) => void }) {
   const [ref, width] = useMeasure<HTMLDivElement>(420)
   const height = 300
   const m = { t: 16, r: 92, b: 36, l: 44 }
   const drawn = series.filter((s) => s.status === 'verified' && s.values.length)
-  const all = drawn.flatMap((s) => s.values)
+  const all = drawn.flatMap((s) => [...s.values, ...(s.lo ?? []), ...(s.hi ?? [])]).filter((v) => v > 0)
   const x = scaleLinear().domain([steps[0], steps[steps.length - 1]]).range([m.l, width - m.r])
   const y = scaleLog()
     .domain([Math.min(...all) * 0.85, Math.max(...all) * 1.15])
@@ -61,18 +65,44 @@ function Panel({ title, series, steps, cursor, setCursor }: { title: string; ser
             </text>
           </g>
         ))}
-        {steps.filter((s) => s === 1 || s % 3 === 0).map((s) => (
+        {steps.filter((s) => steps.length <= 6 || s === 1 || s % 3 === 0).map((s) => (
           <text key={s} x={x(s)} y={height - 16} textAnchor="middle" className="num" fontSize={11} fill="var(--ink-soft)">
             +{s}
           </text>
         ))}
         <text x={width - m.r} y={height - 2} textAnchor="end" fontSize={11} fill="var(--ink-soft)">forecast hour</text>
+        {/* 95% intervals for the two graph models, as hatched bands behind the lines */}
+        <defs>
+          <pattern id={`band-${title.replace(/\W/g, '')}`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)">
+            <line x1="0" y1="0" x2="0" y2="5" stroke="var(--ink-soft)" strokeWidth="0.8" opacity="0.45" />
+          </pattern>
+        </defs>
+        {drawn
+          .filter((s) => s.lo && s.hi && (s.model === 'gat' || s.model === 'gcn'))
+          .map((s) => {
+            const up = s.hi!.map((v, i) => `${i ? 'L' : 'M'}${x(steps[i])} ${y(Math.max(v, y.domain()[0]))}`).join(' ')
+            const down = s.lo!
+              .map((v, i) => [i, v] as const)
+              .reverse()
+              .map(([i, v]) => `L${x(steps[i])} ${y(Math.max(v, y.domain()[0]))}`)
+              .join(' ')
+            return (
+              <path
+                key={`band-${s.model}`}
+                d={`${up} ${down} Z`}
+                fill={`url(#band-${title.replace(/\W/g, '')})`}
+                stroke="var(--ink-soft)"
+                strokeWidth={0.6}
+                strokeDasharray={s.model === 'gcn' ? '3 2' : undefined}
+              />
+            )
+          })}
         {drawn.map((s) => {
           const st = STYLE[s.model]
           return (
             <g key={s.model}>
               <path d={L(s.values) ?? ''} fill="none" stroke={st.stroke} strokeWidth={st.width} strokeDasharray={st.dash} />
-              {s.values.map((v, i) => (i % 3 === 2 || i === 0 ? <Mark key={i} shape={st.shape} cx={x(steps[i])} cy={y(v)} /> : null))}
+              {s.values.map((v, i) => (steps.length <= 6 || i % 3 === 2 || i === 0 ? <Mark key={i} shape={st.shape} cx={x(steps[i])} cy={y(v)} /> : null))}
             </g>
           )
         })}
@@ -105,17 +135,18 @@ function Panel({ title, series, steps, cursor, setCursor }: { title: string; ser
   )
 }
 
-export function RolloutChart() {
+export function RolloutChart({ data = rollout, scope = 'mean over 8 basins' }: { data?: RolloutData | null; scope?: string } = {}) {
   const [cursor, setCursor] = useState<number | null>(null)
-  if (!rollout) {
+  if (!data) {
     return (
       <div className="pending-hatch border-hair border-paper-line p-6 text-small text-ink-soft">
         Per-step errors pending: no completed run with metrics.csv was found when the data was generated.
       </div>
     )
   }
-  const ro = rollout
+  const ro = data
   const steps = ro.steps
+  const withCi = ro.panels.ungauged.some((s) => s.lo && s.hi)
   const models: ModelKey[] = ['persistence', 'mlp', 'gcn', 'gat']
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
@@ -134,18 +165,21 @@ export function RolloutChart() {
         aria-label="Error by forecast hour for four models, gauged and ungauged nodes. Left and right arrow keys move the reading; values are listed in the table below the charts."
         className="grid gap-10 md:grid-cols-2"
       >
-        <Panel title="Gauged nodes" series={rollout.panels.gauged} steps={steps} cursor={cursor} setCursor={setCursor} />
-        <Panel title="Ungauged nodes" series={rollout.panels.ungauged} steps={steps} cursor={cursor} setCursor={setCursor} />
+        <Panel title="Gauged nodes" series={ro.panels.gauged} steps={steps} cursor={cursor} setCursor={setCursor} />
+        <Panel title="Ungauged nodes" series={ro.panels.ungauged} steps={steps} cursor={cursor} setCursor={setCursor} />
       </div>
       <table className="mt-6 w-full text-small">
         <caption className="pb-2 text-left text-micro text-ink-soft">
-          Discharge RMSE ({rollout.unit}) at forecast hour <span className="num">+{at}</span>, mean over 8 basins
+          Discharge RMSE ({ro.unit}) at forecast hour <span className="num">+{at}</span>, {scope}
+          {withCi ? ', with the 95% interval from resampling events and seeds, and MAE' : ''}
         </caption>
         <thead>
           <tr className="border-b-hair border-ink text-left text-micro text-ink-soft">
             <th scope="col" className="py-1 pr-4 font-normal">Model</th>
             <th scope="col" className="py-1 pr-4 text-right font-normal">Gauged</th>
-            <th scope="col" className="py-1 text-right font-normal">Ungauged</th>
+            <th scope="col" className="py-1 pr-4 text-right font-normal">Ungauged</th>
+            {withCi && <th scope="col" className="py-1 pr-4 text-right font-normal">Ungauged 95% interval</th>}
+            {withCi && <th scope="col" className="py-1 text-right font-normal">Ungauged MAE</th>}
           </tr>
         </thead>
         <tbody>
@@ -163,7 +197,11 @@ export function RolloutChart() {
                   {STYLE[mk].label}
                 </th>
                 <td className="num py-1.5 pr-4 text-right">{pending ? 'pending' : fmt(g!.values[idx], 3)}</td>
-                <td className="num py-1.5 text-right">{!u || u.status === 'pending' ? 'pending' : fmt(u.values[idx], 3)}</td>
+                <td className="num py-1.5 pr-4 text-right">{!u || u.status === 'pending' ? 'pending' : fmt(u.values[idx], 3)}</td>
+                {withCi && (
+                  <td className="num py-1.5 pr-4 text-right text-ink-soft">{u?.lo && u.hi ? `${fmt(u.lo[idx], 1)} to ${fmt(u.hi[idx], 1)}` : '—'}</td>
+                )}
+                {withCi && <td className="num py-1.5 text-right">{u?.mae ? fmt(u.mae[idx], 1) : '—'}</td>}
               </tr>
             )
           })}

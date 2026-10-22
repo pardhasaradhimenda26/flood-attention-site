@@ -1,6 +1,6 @@
 // GENERATED FILE — DO NOT HAND-EDIT.
 // Written by scripts/generate_data.py from the committed inputs in provenance/
-// (MANIFEST.json sha256 eb63ecf5fa276088). Reproduce with: npm run regen-data
+// (MANIFEST.json sha256 5173382e799dd4a5). Reproduce with: npm run regen-data
 // Any manual change here is overwritten, and CI fails if this file drifts.
 
 /** verified: measured and reproducible from provenance/. qualified: measured, with a
@@ -83,15 +83,39 @@ export type Ablation = {
   attnR: number
 }
 
+export type WayanadSeries = RolloutSeries & { mae: number[]; lo: number[]; hi: number[] }
+
+export type WayanadRollout = {
+  variable: string
+  unit: string
+  steps: number[]
+  run: string
+  configHash: string | null
+  events: string[]
+  panels: { gauged: WayanadSeries[]; ungauged: WayanadSeries[] }
+} | null
+
+export type WayanadInfo = {
+  runId: string
+  configHash: string | null
+  runDate: string
+  archive: string
+  archiveSha256: string
+  model: string
+  events: { train: string[]; test: string[] }
+  heroEvent: string
+} | null
+
 export type Provenance = {
   thesisCommit: string | null
   datasetVersion: string | null
   runs: { id: string; role: string; configHash: string | null; configPath: string | null; seeds: number[] | null }[]
   bootstrap: { draws: number; seed: number; level: number; unit: string }
+  wayanad: WayanadInfo
 }
 
 export const provenance: Provenance = {
-  "thesisCommit": "eb484da81eda9c3cecb064c2cbcc06b9fae5e701",
+  "thesisCommit": "7e4f7bcd143d7f1e9c88eaf03dd23796ea8be753",
   "datasetVersion": "864b79098c",
   "runs": [
     {
@@ -208,6 +232,17 @@ export const provenance: Provenance = {
         1,
         2
       ]
+    },
+    {
+      "id": "20261022-094841-88294fdea4-wayanad",
+      "role": "wayanad",
+      "configHash": "88294fdea4",
+      "configPath": "configs/wayanad.yaml",
+      "seeds": [
+        0,
+        1,
+        2
+      ]
     }
   ],
   "bootstrap": {
@@ -215,6 +250,36 @@ export const provenance: Provenance = {
     "seed": 20260830,
     "level": 0.95,
     "unit": "basins and seeds resampled independently"
+  },
+  "wayanad": {
+    "runId": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4",
+    "runDate": "2026-10-22",
+    "archive": "HEC-RAS-2D-FINAL-DATASET.zip",
+    "archiveSha256": "7511a29510d13e416e641bfc45d5f5f0272e83e7d6de981ab791215cb66a37ee",
+    "model": "HEC-RAS 7.0.1 2D; T1 = plan p02, the observed 2018 inflow (dataset README)",
+    "events": {
+      "train": [
+        "H1",
+        "H2",
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+        "H7",
+        "H8",
+        "H9",
+        "H10"
+      ],
+      "test": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5"
+      ]
+    },
+    "heroEvent": "T1 (plan p02, observed 2018 inflow)"
   }
 }
 
@@ -960,6 +1025,248 @@ export const metrics: Metric[] = [
     "supersedes": "one-sample t over 24 pairs as if independent, p = 0.012"
   },
   {
+    "id": "wy_reach_km",
+    "label": "Wayanad: modelled reach along its centreline",
+    "value": 30.0,
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "read",
+    "unit": "km",
+    "qualifier": "centreline traced through cell positions recovered from rasters; the static files were not delivered",
+    "source": "provenance/wayanad/checks.json",
+    "run": "data/extract_wayanad.py on archive 7511a29510",
+    "configHash": "7511a29510"
+  },
+  {
+    "id": "wy_cells_located",
+    "label": "Wayanad: cells located by their own raster pixels",
+    "value": 93.7,
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "read",
+    "unit": "%",
+    "qualifier": "1602 of 25268 cells placed by similarity instead",
+    "source": "provenance/wayanad/checks.json",
+    "run": "data/extract_wayanad.py on archive 7511a29510",
+    "configHash": "7511a29510"
+  },
+  {
+    "id": "wy_sections",
+    "label": "Wayanad: cross-sections extracted",
+    "value": 7,
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "read",
+    "qualifier": "spacing set so every reach takes at least one hourly step; the brief asked for 25 to 40; 4 gauged, 3 ungauged",
+    "source": "provenance/wayanad/checks.json",
+    "run": "data/extract_wayanad.py on archive 7511a29510",
+    "configHash": "7511a29510"
+  },
+  {
+    "id": "wy_travel_h",
+    "label": "Wayanad: measured flood travel time over the reach",
+    "value": 10.92,
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "read",
+    "unit": "h",
+    "qualifier": "mean of cross-correlation (11.51 h) and peak arrival (9.55 h), which disagree by 0.44 h per reach on average",
+    "source": "provenance/wayanad/checks.json",
+    "run": "data/extract_wayanad.py on archive 7511a29510",
+    "configHash": "7511a29510"
+  },
+  {
+    "id": "wy_celerity",
+    "label": "Wayanad: implied flood-wave celerity per reach",
+    "value": "0.50–1.53",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "read",
+    "unit": "m/s",
+    "qualifier": "within the brief's 0.5 to 4 m/s sanity range after merging reaches in a floodplain storage zone",
+    "source": "provenance/wayanad/checks.json",
+    "run": "data/extract_wayanad.py on archive 7511a29510",
+    "configHash": "7511a29510"
+  },
+  {
+    "id": "wy_tt_length_r",
+    "label": "Wayanad: travel time vs reach length, r",
+    "value": "+0.855",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "read",
+    "qualifier": "correlated but not perfectly; six reaches",
+    "source": "provenance/wayanad/checks.json",
+    "run": "data/extract_wayanad.py on archive 7511a29510",
+    "configHash": "7511a29510"
+  },
+  {
+    "id": "wy_outflow_check",
+    "label": "Wayanad: outlet discharge vs the model's outflow record, worst event",
+    "value": 3.3,
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "read",
+    "unit": "%",
+    "qualifier": "relative RMSE; an independent check of the volume-based discharge",
+    "source": "provenance/wayanad/checks.json",
+    "run": "data/extract_wayanad.py on archive 7511a29510",
+    "configHash": "7511a29510"
+  },
+  {
+    "id": "wy_gate_r2_6h",
+    "label": "Wayanad: ungauged discharge 6 h ahead from upstream gauges, R²",
+    "value": 0.9,
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "read",
+    "qualifier": "median over 15 events, ridge regression, out of sample; range 0.36 to 0.91; the test's baseline has no varying input here, so its ΔR² is not meaningful",
+    "source": "provenance/wayanad/gate.txt",
+    "run": "evaluation/gate_information_test.py on archive 7511a29510",
+    "configHash": "7511a29510"
+  },
+  {
+    "id": "wy_gat_vs_gcn",
+    "label": "Wayanad: GAT over GCN, ungauged discharge RMSE, held-out events",
+    "value": "+11.4",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "unit": "%",
+    "qualifier": "95% interval −16.7% to +40.7%; 5 held-out events, 3 seeds, 3 ungauged sections; first run on model output; T5 goes the other way (-4.4%)",
+    "note": "scored over each held-out event's whole record; positive = GAT better",
+    "source": "provenance/runs/20261022-094841-88294fdea4-wayanad/metrics_per_seed.csv",
+    "run": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4",
+    "interval": {
+      "lo": -16.723,
+      "hi": 40.725,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 5 events and 3 seeds with replacement; percentile"
+    }
+  },
+  {
+    "id": "wy_gat_vs_gcn_train",
+    "label": "Wayanad: GAT over GCN, training events' final 20%",
+    "value": "-8.9",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "unit": "%",
+    "qualifier": "95% interval −47.5% to +44.4%; recession only (the harness's test block); not the comparison that matters",
+    "source": "provenance/runs/20261022-094841-88294fdea4-wayanad/metrics_per_seed.csv",
+    "run": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4",
+    "interval": {
+      "lo": -47.54,
+      "hi": 44.439,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 10 events and 3 seeds with replacement; percentile"
+    }
+  },
+  {
+    "id": "wy_gat_vs_mlp",
+    "label": "Wayanad: GAT over graph-blind MLP, held-out events",
+    "value": "+91.6",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "unit": "%",
+    "qualifier": "95% interval +88.1% to +94.6%; the MLP has no upstream information at an ungauged section",
+    "source": "provenance/runs/20261022-094841-88294fdea4-wayanad/metrics_per_seed.csv",
+    "run": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4",
+    "interval": {
+      "lo": 88.086,
+      "hi": 94.626,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 5 events and 3 seeds with replacement; percentile"
+    }
+  },
+  {
+    "id": "wy_gat_rmse",
+    "label": "Wayanad: GAT ungauged discharge RMSE, held-out events",
+    "value": 60.7,
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "unit": "m³/s",
+    "qualifier": "5 held-out events, 3 seeds, 3 ungauged sections; first run on model output",
+    "source": "provenance/runs/20261022-094841-88294fdea4-wayanad/metrics_per_seed.csv",
+    "run": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4"
+  },
+  {
+    "id": "wy_att_tt_r",
+    "label": "Wayanad: attention vs measured travel time, stratified r",
+    "value": "-0.363",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "qualifier": "inside the permutation null, whose 95th percentile is +0.586 with only 15 edges per event; reach-length baseline scores +0.929; seeds agree at +0.606; the bootstrap 95% interval −0.445 to −0.285 is narrow only because every event shares one graph and one measured answer key",
+    "note": "held-out events; strata = hop count × target in-degree (chain adaptation)",
+    "source": "provenance/runs/20261022-094841-88294fdea4-wayanad/attention_scores_wayanad.csv",
+    "run": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4",
+    "interval": {
+      "lo": -0.445,
+      "hi": -0.285,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 5 events and 3 seeds with replacement; percentile"
+    }
+  },
+  {
+    "id": "wy_att_confound",
+    "label": "Wayanad: reach-length confound baseline",
+    "value": "+0.929",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "qualifier": "the same statistic with reach length, a legal model input, in place of attention",
+    "source": "provenance/runs/20261022-094841-88294fdea4-wayanad/attention_scores_wayanad.csv",
+    "run": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4"
+  },
+  {
+    "id": "wy_att_vs_confound",
+    "label": "Wayanad: attention minus the reach-length baseline",
+    "value": "-1.292",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "qualifier": "95% interval −1.373 to −1.213",
+    "source": "provenance/runs/20261022-094841-88294fdea4-wayanad/attention_scores_wayanad.csv",
+    "run": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4",
+    "interval": {
+      "lo": -1.373,
+      "hi": -1.213,
+      "level": 0.95,
+      "method": "clustered bootstrap, 10000 draws resampling 5 events and 3 seeds with replacement; percentile"
+    }
+  },
+  {
+    "id": "wy_att_seed_r",
+    "label": "Wayanad: attention agreement between seeds",
+    "value": "+0.606",
+    "status": "qualified",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "qualifier": "held-out events; patterns only moderately stable",
+    "source": "provenance/runs/20261022-094841-88294fdea4-wayanad/attention_seed_consistency_wayanad.csv",
+    "run": "20261022-094841-88294fdea4-wayanad",
+    "configHash": "88294fdea4"
+  },
+  {
+    "id": "wy_validation",
+    "label": "Wayanad: model output checked against observed gauges or satellite extent",
+    "value": "—",
+    "status": "pending",
+    "group": "wayanad",
+    "derivation": "recomputed",
+    "note": "the supplier's README: not yet validated against observations"
+  },
+  {
     "id": "real_gat_rmse",
     "label": "GAT ungauged RMSE on H1–H4 gauge data",
     "value": "—",
@@ -1453,3 +1760,253 @@ export const ablations: Ablation[] | null = [
     "attnR": 0.077
   }
 ]
+
+export const wayanadRollout: WayanadRollout = {
+  "variable": "discharge_m3s",
+  "unit": "m³/s",
+  "steps": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "run": "20261022-094841-88294fdea4-wayanad",
+  "configHash": "88294fdea4",
+  "events": [
+    "T1",
+    "T2",
+    "T3",
+    "T4",
+    "T5"
+  ],
+  "panels": {
+    "gauged": [
+      {
+        "model": "persistence",
+        "status": "verified",
+        "values": [
+          17.555,
+          33.333,
+          49.443,
+          65.188
+        ],
+        "mae": [
+          11.639,
+          22.515,
+          33.582,
+          44.627
+        ],
+        "lo": [
+          13.167,
+          24.818,
+          36.417,
+          47.852
+        ],
+        "hi": [
+          22.189,
+          41.943,
+          62.132,
+          82.215
+        ]
+      },
+      {
+        "model": "mlp",
+        "status": "verified",
+        "values": [
+          29.517,
+          57.413,
+          85.615,
+          113.527
+        ],
+        "mae": [
+          23.615,
+          46.455,
+          69.484,
+          92.431
+        ],
+        "lo": [
+          22.013,
+          42.7,
+          63.722,
+          84.481
+        ],
+        "hi": [
+          37.963,
+          74.165,
+          110.823,
+          147.172
+        ]
+      },
+      {
+        "model": "gcn",
+        "status": "verified",
+        "values": [
+          56.198,
+          53.923,
+          69.689,
+          87.121
+        ],
+        "mae": [
+          36.835,
+          37.143,
+          43.617,
+          55.594
+        ],
+        "lo": [
+          34.822,
+          29.253,
+          35.159,
+          44.47
+        ],
+        "hi": [
+          80.465,
+          78.317,
+          112.19,
+          138.755
+        ]
+      },
+      {
+        "model": "gat",
+        "status": "verified",
+        "values": [
+          29.414,
+          34.911,
+          47.963,
+          60.869
+        ],
+        "mae": [
+          22.639,
+          25.006,
+          33.551,
+          42.104
+        ],
+        "lo": [
+          24.077,
+          23.013,
+          32.269,
+          41.053
+        ],
+        "hi": [
+          33.441,
+          48.083,
+          71.742,
+          91.841
+        ]
+      }
+    ],
+    "ungauged": [
+      {
+        "model": "persistence",
+        "status": "verified",
+        "values": [
+          720.453,
+          720.236,
+          720.304,
+          720.222
+        ],
+        "mae": [
+          576.611,
+          576.694,
+          576.962,
+          577.182
+        ],
+        "lo": [
+          549.447,
+          549.308,
+          549.315,
+          549.196
+        ],
+        "hi": [
+          963.001,
+          962.692,
+          962.78,
+          962.675
+        ]
+      },
+      {
+        "model": "mlp",
+        "status": "verified",
+        "values": [
+          719.903,
+          723.057,
+          726.5,
+          730.601
+        ],
+        "mae": [
+          596.367,
+          606.965,
+          614.697,
+          622.146
+        ],
+        "lo": [
+          573.846,
+          589.687,
+          603.101,
+          613.787
+        ],
+        "hi": [
+          933.25,
+          922.825,
+          916.931,
+          912.785
+        ]
+      },
+      {
+        "model": "gcn",
+        "status": "verified",
+        "values": [
+          99.054,
+          58.324,
+          54.364,
+          62.162
+        ],
+        "mae": [
+          66.02,
+          38.429,
+          37.561,
+          44.756
+        ],
+        "lo": [
+          52.395,
+          32.121,
+          31.935,
+          40.158
+        ],
+        "hi": [
+          180.001,
+          86.579,
+          75.271,
+          83.628
+        ]
+      },
+      {
+        "model": "gat",
+        "status": "verified",
+        "values": [
+          89.104,
+          51.47,
+          49.854,
+          52.353
+        ],
+        "mae": [
+          52.545,
+          34.713,
+          33.876,
+          36.731
+        ],
+        "lo": [
+          38.623,
+          30.953,
+          29.881,
+          33.188
+        ],
+        "hi": [
+          179.794,
+          82.524,
+          80.274,
+          79.685
+        ]
+      }
+    ]
+  }
+}

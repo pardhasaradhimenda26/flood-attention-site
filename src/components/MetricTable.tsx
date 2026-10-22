@@ -19,6 +19,7 @@ const GROUPS: [string, string][] = [
   ['attention', 'Attention'],
   ['ablation', 'Ablations'],
   ['rigor', 'Rigor'],
+  ['wayanad', 'Wayanad HEC-RAS 2D port (model output, first run)'],
   ['real', 'Real network and open questions'],
 ]
 

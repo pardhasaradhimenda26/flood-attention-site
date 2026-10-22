@@ -64,11 +64,11 @@ describe('storm timeline', () => {
   it('is operable by keyboard and announces what changed', () => {
     render(<StormTimeline />)
     const slider = screen.getByRole('slider', { name: hero.timelineLabel })
-    fireEvent.change(slider, { target: { value: '60' } })
-    expect(useSite.getState().heroSeekTo).toBe(60)
-    act(() => useSite.getState().setHeroTime(60))
+    fireEvent.change(slider, { target: { value: '40' } })
+    expect(useSite.getState().heroSeekTo).toBe(40)
+    act(() => useSite.getState().setHeroTime(40))
     const live = document.querySelector('[aria-live="polite"]')!
-    expect(live.textContent).toMatch(/Hour 60/)
+    expect(live.textContent).toMatch(/\d{1,2} Aug, \d{2}:00\. Inflow from upstream/)
     expect(slider.getAttribute('aria-valuetext')).toMatch(/outlet/)
   })
 })

@@ -74,8 +74,29 @@ defined once in `src/data/glossary.ts` and marked in copy as `[[term]]` or
 
 | URL parameter | effect |
 |---|---|
-| `?hour=N` | hold the storm at hour N |
+| `?hour=N` | hold the hero flood at timeline hour N |
 | `?debug=frames` | count rendered frames per canvas in `window.__frames` |
+
+## Wayanad (HEC-RAS 2D model output)
+
+The hero, the river-to-graph figure and the "A real river, modelled" section use
+a HEC-RAS 2D model of the Kabini reach in Wayanad (15 floods built from the
+August 2018 inflow), supplied by the Taiwan Project Team. It is model output,
+not yet validated against observations. Every adaptation is logged in
+`WAYANAD_FINDINGS.md`.
+
+In the thesis repository:
+
+```bash
+.venv/Scripts/python.exe -I data/extract_wayanad.py --zip HEC-RAS-2D-FINAL-DATASET.zip --work <scratch> --out wayanad_dataset
+.venv/Scripts/python.exe -I data/make_wayanad_config.py wayanad_dataset
+.venv/Scripts/python.exe training/train.py --config configs/wayanad.yaml --tag wayanad
+.venv/Scripts/python.exe evaluation/wayanad_attention.py results/<run>/ --data-dir wayanad_dataset
+.venv/Scripts/python.exe -I data/export_wayanad_site.py --work <scratch> --data wayanad_dataset --out <site>/public/wayanad --json <site>/src/data/wayanad.json --video
+```
+
+then `python scripts/generate_data.py` here syncs the extracted CSVs, checks
+and run outputs into `provenance/` and rebuilds `results.ts`.
 
 ## Tests
 

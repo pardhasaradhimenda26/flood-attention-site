@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useState } from 'react'
 import { Verdict } from './Verdict'
+import { Wayanad } from './Wayanad'
 import { Problem } from './Problem'
 import { Approach } from './Approach'
 import { Attention } from './Attention'
@@ -15,8 +16,9 @@ import { Footer } from './Footer'
   long task while the hero comes up. A #hash link mounts everything at once.
 */
 // Act 2: Problem. Act 3: Approach (the river becomes a graph), Attention, Dataset.
-// Act 4: Verdict, Findings, Results. Then rigour and the footer.
-const SECTIONS = [Problem, Approach, Attention, Dataset, Verdict, Findings, Results, Rigor, Footer]
+// Act 4: Wayanad (the real river, modelled), then the synthetic Verdict,
+// Findings and Results. Then rigour and the footer.
+const SECTIONS = [Problem, Approach, Attention, Dataset, Wayanad, Verdict, Findings, Results, Rigor, Footer]
 
 type IdleWindow = Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void }
 

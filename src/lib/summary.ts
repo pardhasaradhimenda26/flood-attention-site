@@ -31,9 +31,15 @@ export function findingsSummary(): { title: string; status: string; text: string
         `Reach length alone scores ${mv('att_confound')}, higher than the learned attention, and attention agrees across seeds at only ${mv('att_seed_r')}.`,
     },
     {
+      title: 'Wayanad, modelled',
+      status: word('wy_gat_vs_gcn'),
+      text:
+        `On a HEC-RAS 2D model of the Kabini river in Wayanad (August 2018 inflow; model output, not yet validated against observations), attention lowered ungauged error by ${mv('wy_gat_vs_gcn', true)} against a GCN over five held-out floods (${ciOf('wy_gat_vs_gcn')}), and again did not track measured travel time (r = ${mv('wy_att_tt_r')}, against a reach-length baseline of ${mv('wy_att_confound')}).`,
+    },
+    {
       title: 'Real gauges',
       status: word('real_gat_vs_gcn'),
-      text: 'Results on the real network’s four gauges (H1–H4) do not exist yet. Every number above comes from synthetic basins.',
+      text: 'Results on the real network’s four gauges (H1–H4) do not exist yet. Every number above comes from synthetic basins or from HEC-RAS model output.',
     },
   ]
 }

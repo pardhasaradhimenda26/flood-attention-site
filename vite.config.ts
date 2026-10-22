@@ -32,7 +32,7 @@ function preloadFonts(): Plugin {
  * nulls included. Crawlers and link previews read the same numbers the page shows.
  */
 function staticShell(): Plugin {
-  const title = 'Rain falls in the hills. The flood arrives days later.'
+  const title = 'The flood comes down the valley. Only four places can see it.'
   return {
     name: 'static-shell',
     transformIndexHtml(html) {
@@ -50,7 +50,7 @@ function staticShell(): Plugin {
           ['meta', { property: 'og:image', content: og }],
           ['meta', { property: 'og:image:width', content: '1200' }],
           ['meta', { property: 'og:image:height', content: '630' }],
-          ['meta', { property: 'og:image:alt', content: `Rain falling on the head of a river valley while the water there rises, the outlet still calm, beside the headline “Rain falls in the hills. The flood arrives days later.” and a storm timeline marking the ${lagHours}-hour lag.` }],
+          ['meta', { property: 'og:image:alt', content: `The Kabini valley in Wayanad flooding in the HEC-RAS model of the August 2018 flood, with four gauge boards reading depth and discharge, beside the headline “The flood comes down the valley. Only four places can see it.” and a timeline marking the ${lagHours}-hour lag from inflow peak to outlet peak.` }],
           ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
           ['meta', { name: 'twitter:title', content: title }],
           ['meta', { name: 'twitter:description', content: desc }],

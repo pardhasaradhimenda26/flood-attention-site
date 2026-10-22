@@ -123,7 +123,7 @@ export const claims = {
     'pending',
     ['real_gat_vs_gcn'],
     'Nobody has tested this on the real river’s sensors yet.',
-    'GAT vs GCN on the H1–H4 gauge record: pending. Every number on this page comes from synthetic basins.',
+    'GAT vs GCN on the H1–H4 gauge record: pending. Every number on this page comes from synthetic basins or from HEC-RAS model output, not from gauges.',
   ),
   week4: claim(
     'week4',
@@ -152,6 +152,42 @@ export const claims = {
     ['att_local_area', 'att_mean_q', 'att_tt_r'],
     'The model learned to listen to the branch carrying more water, not to the branch whose water arrives sooner.',
     `Attention vs upstream local area ${mv('att_local_area')} and upstream mean discharge ${mv('att_mean_q')}, same sign in all 8 basins; vs travel time ${mv('att_tt_r')}.`,
+  ),
+  // ---- Wayanad: a real river, modelled (first numbers; qualified at best)
+  wyPort: claim(
+    'wyPort',
+    'qualified',
+    ['wy_reach_km', 'wy_sections', 'wy_cells_located'],
+    'The project now also runs on a computer model of a real river in flood, not only on made-up ones.',
+    `[[HEC-RAS|hec-ras]] 2D [[model output|model-output]] for the Kabini reach in Wayanad, 15 floods built from the August 2018 inflow. The 2D mesh was reduced to ${mv('wy_sections')} [[cross-sections|cross-section]] along a ${mv('wy_reach_km', true)} centreline; ${mv('wy_cells_located', true)} of mesh cells were located from the supplied rasters because the coordinate files were missing.`,
+  ),
+  wyLag: claim(
+    'wyLag',
+    'qualified',
+    ['wy_travel_h', 'wy_celerity', 'wy_tt_length_r'],
+    'Here a flood takes about half a day to cross the modelled stretch, and that delay was measured from the model, not assumed.',
+    `[[Travel time|travel-time]] over the reach ${mv('wy_travel_h', true)}, from cross-correlation and peak arrival, which disagree by up to an hour in a floodplain storage zone. [[Celerity]] ${mv('wy_celerity', true)} per reach; travel time vs reach length r = ${mv('wy_tt_length_r')}.`,
+  ),
+  wyAccuracy: claim(
+    'wyAccuracy',
+    'qualified',
+    ['wy_gat_vs_gcn', 'wy_gat_vs_mlp'],
+    'Learned attention may help on this river too, but five test floods are too few to be sure.',
+    `GAT over GCN at [[ungauged]] sections, held-out floods: ${pct('wy_gat_vs_gcn')}, ${ciOf('wy_gat_vs_gcn')}. Both graph models beat the graph-blind [[MLP|mlp]] by ${pct('wy_gat_vs_mlp')}: without upstream information an ungauged section is not predictable at all.`,
+  ),
+  wyAttention: claim(
+    'wyAttention',
+    'qualified',
+    ['wy_att_tt_r', 'wy_att_confound', 'wy_att_seed_r'],
+    'Again the model’s attention did not follow how long water takes to arrive, and the length of each stretch predicts that far better.',
+    `Stratified [[correlation]] of attention with measured travel time: ${mv('wy_att_tt_r')}, inside the [[permutation null|permutation-null]]. Reach length alone, the [[confound]], scores ${mv('wy_att_confound')}. Seeds agree at ${mv('wy_att_seed_r')}.`,
+  ),
+  wyValidation: claim(
+    'wyValidation',
+    'pending',
+    ['wy_validation'],
+    'Nobody has yet checked this river model against real measurements.',
+    'HEC-RAS output vs observed gauge records or satellite flood extent: pending. Every Wayanad number here is model output, not yet validated against observations.',
   ),
   undirected: claim(
     'undirected',

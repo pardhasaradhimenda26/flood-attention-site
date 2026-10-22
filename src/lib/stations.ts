@@ -9,6 +9,7 @@ import { confluences, mainArrival, mainStem } from './graph'
 export type SectionKey =
   | 'top'
   | 'verdict'
+  | 'wayanad'
   | 'problem'
   | 'approach'
   | 'attention'
@@ -20,14 +21,15 @@ export type SectionKey =
 
 const ORDER: [SectionKey, string, number][] = [
   ['top', 'Headwater', 0],
-  ['problem', 'Problem', 0.1],
-  ['approach', 'Approach', 0.22],
-  ['attention', 'Attention', 0.34],
-  ['dataset', 'Dataset', 0.47],
-  ['verdict', 'Verdict', 0.59],
-  ['findings', 'Findings', 0.7],
+  ['problem', 'Problem', 0.09],
+  ['approach', 'Approach', 0.19],
+  ['attention', 'Attention', 0.29],
+  ['dataset', 'Dataset', 0.4],
+  ['wayanad', 'Wayanad', 0.5],
+  ['verdict', 'Verdict', 0.6],
+  ['findings', 'Findings', 0.71],
   ['results', 'Results', 0.82],
-  ['rigor', 'Rigor', 0.94],
+  ['rigor', 'Rigor', 0.93],
   ['footer', 'Outlet', 1],
 ]
 

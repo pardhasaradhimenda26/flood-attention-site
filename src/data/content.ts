@@ -20,27 +20,45 @@ export const site = {
 }
 
 export const hero = {
-  headline: 'Rain falls in the hills. The flood arrives days later.',
+  headline: 'The flood comes down the valley. Only four places can see it.',
   question: 'What is the water doing where nobody is measuring?',
   lede:
-    'Four places on this river have a sensor that records how high the water is. Everywhere else, nobody knows. This project teaches a computer to estimate the water at those other places, from the four sensors and from what happened upstream.',
+    'This is the Kabini river in Wayanad, Kerala, in the August 2018 floods, as a computer model of the river recreates it. Four places along it have a sensor that records how high the water is. Everywhere else, nobody knows. This project teaches a computer to estimate the water at those other places, from the four sensors and from what is coming down from upstream.',
   sceneLabel:
-    'A river valley seen from downstream, during one real storm from the project’s data. Rain falls first on the hills at the top of the valley. Within hours the water rises there and spreads over the low ground beside the river. About {lag} hours after the heaviest rain the rise reaches the bottom of the valley. Four gauge towers stand by the river and show the depth they measure; the other {ungauged} marked places across the river have no reading. Water depth is exaggerated so it can be seen.',
+    'The Kabini valley in Wayanad seen from the south-east, as the HEC-RAS model recreates the August 2018 flood. Water enters at the upstream end and spreads over the low ground as it moves down the valley; the peak reaches the far end about {lag} hours after the inflow peaks. The modelled reach is {km} km long. {gauges} gauge towers show the depth they measure; the other {ungauged} marked places across the river have no reading. Height is exaggerated so the valley can be seen.',
   fallbackLabel:
-    'Plan view of synthetic basin 01: a main stem and two tributaries. A flood pulse released at the headwaters runs down each reach and reaches each cross-section after the summed travel time of the reaches above it. Four gauged cross-sections are marked.',
-  timelineLabel: 'Storm hour',
+    'Animation of the modelled flood spreading across the Kabini valley in Wayanad during August 2018, seen from above, coloured by water depth.',
+  timelineLabel: 'Flood time',
   scaleNote:
-    'In the 3D view the river is drawn wider and the water deeper than to scale, so the flood can be seen. The numbers on the gauge boards and in this chart are the dataset’s, unscaled.',
-  replay: 'Replay the storm',
-  frozen: 'Reduced motion: held at the hour the river carries the most water.',
-  tableToggle: 'Read the storm as a table',
-  tableCaption: 'The same storm at the four gauges: when the water peaked and how deep it got.',
+    'Height is exaggerated 30 times, for the ground and the water alike, so depth stays in proportion to the valley. Ground outside the modelled area is a neutral fill, not data. Every depth and flow here is HEC-RAS 2D model output for the observed 2018 inflow (event T1), not yet validated against observations.',
+  replay: 'Replay the flood',
+  frozen: 'Reduced motion: held at the hour the gauges are deepest.',
+  tableToggle: 'Read the flood as a table',
+  tableCaption: 'The modelled flood at the four gauges: how deep the water got and when.',
+}
+
+export const wayanadCopy = {
+  heading: 'A real river, modelled: first numbers',
+  intro:
+    'The flood at the top of the page and the place that turned into a graph are a HEC-RAS 2D model of the Kabini river in Wayanad, supplied by the Taiwan Project Team. This is the first experiment on it: the same four models, unchanged, trained on ten modelled floods and tested on five others. These are first numbers from a new dataset, not validated findings, and the river model itself has not yet been checked against real measurements. The synthetic-basin results that follow are the earlier work.',
+  dated:
+    'Run of {date}: {run}, config {hash}. Data: {archive}, sha256 {sha}…; training floods {train}, held-out floods {test}; the hero shows {hero}. HEC-RAS 2D model output, not yet validated against observations.',
+  findingsLink: 'Every adaptation and assumption is logged in WAYANAD_FINDINGS.md.',
+  travelCaption: 'Time for the flood peak to cross the modelled reach, measured two ways from the model output.',
+  accuracyCaption: 'Lower error than the GCN at the three ungauged sections, pooled over the five held-out floods.',
+  attCaption: 'Attention vs measured travel time, stratified so hop count cannot answer.',
+  confoundCaption: 'Reach length alone, the same statistic. It wins.',
+  seedCaption: 'How closely three training seeds agree on their attention.',
+  rolloutHeading: 'Error by forecast hour, held-out floods',
+  rolloutIntro:
+    'The forecast horizon is {steps} hours, set from the measured travel times (about twice the mean time to cross one reach) rather than the 12 hours used on the synthetic basins. Hatched bands are 95% intervals from resampling floods and seeds; GCN’s band has a dashed edge.',
+  rolloutScope: 'mean over the five held-out floods',
 }
 
 export const verdict = {
-  heading: 'What held, and what did not',
+  heading: 'What held on the synthetic basins, and what did not',
   intro:
-    'The project tested two claims. Attention improved accuracy over a GCN, by a margin that is real but uncertain. Attention did not learn travel time, which was the thesis’s main contribution. Results on the real gauges are pending.',
+    'Before Wayanad, the project tested two claims on eight synthetic basins. Attention improved accuracy over a GCN, by a margin that is real but uncertain. Attention did not learn travel time, which was the thesis’s main contribution. Results on the real gauges are pending.',
   accuracy: {
     title: 'Accuracy: a qualified gain',
     caption:
@@ -74,7 +92,7 @@ export const problem = {
   heading: 'Most of a river is never measured',
   paragraphs: [
     'The real network this thesis targets has {sections} surveyed [[cross-sections|cross-section]] and {gauges} [[gauges|gauge]], H1 to H4. At {unmeasured} of the {sections} sections — {pct}% — there is no record of [[discharge]] or [[stage]] at all. A forecast there has to come from somewhere else.',
-    'The somewhere else is upstream. The storm at the top of the page took {lag} hours to get from the [[headwaters|headwater]] to the outlet. That delay is the [[travel time|travel-time]], and it is set by the [[celerity]] of the flood wave. On the way the wave gets lower and broader, because the channel stores water as it passes and lets it go slowly. [[Muskingum routing|muskingum]] describes each [[reach]] with two numbers: K, its travel time, and X, how much water it holds ahead of the wave.',
+    'The somewhere else is upstream. The flood at the top of the page took {lag} hours to get from the upstream end of the modelled reach to its outlet. That delay is the [[travel time|travel-time]], and it is set by the [[celerity]] of the flood wave. On the way the wave gets lower and broader, because the channel stores water as it passes and lets it go slowly. [[Muskingum routing|muskingum]] describes each [[reach]] with two numbers: K, its travel time, and X, how much water it holds ahead of the wave.',
     'That lag is what a model has to learn. A section’s future depends on what was happening upstream one travel time ago, and the delay is different for every reach.',
   ],
   figureTitle: 'One storm at two gauges',
@@ -87,18 +105,18 @@ export const approach = {
   intro:
     'Four steps, each resting on the one before. The order matters: attention only has something to weigh once the graph carries information a node does not already have.',
   morph: {
-    before: 'The river',
+    before: 'The place',
     after: 'The graph',
     beforeLabel:
-      'Plan view of basin 01 as a river: a channel drawn at its true relative width on its floodplain, survey lines across it at each cross-section, and four gauge towers on the bank.',
+      'Plan view of the modelled Kabini reach in Wayanad: the greatest extent of the 2018 flood in the HEC-RAS model, coloured by depth, with the river’s centreline, survey lines across it at each cross-section, and {g} gauge towers on the bank.',
     afterLabel:
-      'The same basin as a graph: every cross-section is a node, the four gauges are filled nodes, every reach is an arrow pointing downstream, and dashed arcs link places two and three reaches apart.',
-    stageRiver: 'A river: banks, a channel, survey lines across it, four gauge towers.',
-    stageMid: 'The banks go, the channel becomes a line, each survey line becomes a point.',
-    stageGraph: 'A graph: 28 nodes, the gauged four filled; reaches as arrows; dashed links skip one or two places.',
+      'The same reach as a graph: {n} cross-sections are nodes, the {g} gauged ones filled; straight arrows join each cross-section to the next one downstream, and dashed arcs link places two and three reaches apart.',
+    stageRiver: 'A real place: the Kabini valley, flooded as the model has it in 2018, with the river’s line and {g} gauges.',
+    stageMid: 'The flood map goes, the winding river becomes straight reaches, each survey line becomes a point.',
+    stageGraph: 'A graph: {n} nodes, {g} of them gauged; reaches as arrows; dashed links skip one or two places.',
     replay: 'Play it again',
     caption:
-      'Representing a river as a graph keeps what a forecast needs — which place drains into which — and drops what it does not. The dashed links let a place hear from two or three places upstream in one step.',
+      'Representing a river as a graph keeps what a forecast needs — which place drains into which, and how far apart they are — and drops what it does not. This reach is a single channel {km} km long with no tributary, so its graph is a chain. The dashed links let a place hear from two or three places upstream in one step.',
   },
   // Step text lives in claims.ts (graph, passing, physics, attending).
   steps: [
@@ -286,7 +304,7 @@ export const rigor = {
 }
 
 export const footer = {
-  pending: 'Every result on this page comes from synthetic basins. Results on real gauge data (H1–H4) are pending.',
+  pending: 'Every result on this page comes from synthetic basins or from HEC-RAS model output for Wayanad, which has not yet been validated against observations. Results on real gauge data (H1–H4) are pending.',
   provenance:
     'Every number is rebuilt from the committed inputs in provenance/ with npm run regen-data. Thesis commit {commit}, dataset version {dataset}, main run {run} (config hash {hash}).',
   provenanceLink: 'Inputs and run records',

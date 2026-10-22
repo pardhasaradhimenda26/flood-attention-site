@@ -1,25 +1,62 @@
-import { nodes } from '../data/network'
-import { stormEvent } from '../data/storm'
-import { gaugeName } from './graph'
+import site from '../data/wayanad.json'
 import { hero, tpl } from '../data/content'
 
 /*
-  The hero's storm: one real event from the dataset (see stormEvent in
-  network.ts and pick_storm in generate_data.py). Every value here is read
-  from it and interpolated between hours; nothing is synthesised.
+  The hero's flood: event T1 of the Wayanad HEC-RAS 2D model (the observed
+  August 2018 inflow at Mananthavady), exported by
+  data/export_wayanad_site.py in the thesis repository. Everything here is
+  read from that export and interpolated between hours; nothing is
+  synthesised. The model has no rainfall: all water enters at the upstream
+  boundary, so the forcing shown is the inflow hydrograph.
 */
 
-export const hasStorm = stormEvent !== null
+export type Section = {
+  id: string
+  s_m: number
+  gauged: boolean
+  role: string
+  /** [column, row] on the 50 m grid, from the north-west corner */
+  grid: [number, number]
+  utm: [number, number]
+  bed_m: number
+  width_m: number
+  depth_m: number[] | null
+  discharge_m3s: number[] | null
+}
 
-/** World units of water per metre of depth in the hero: exaggerated so a 0.7 m flood shows on a 22-unit valley. */
-export const STAGE_SCALE = 0.2
-export const stormHours = stormEvent?.hours ?? 1
+export type WayanadSite = {
+  event: string
+  eventLabel: string
+  source: string
+  crs: string
+  originUtm: [number, number]
+  cellM: number
+  nx: number
+  ny: number
+  bedRangeM: [number, number]
+  frameHours: number[]
+  hourStart: number
+  hourEnd: number
+  startTime: string
+  depthStepM: number
+  nWet: number
+  inflowM3s: number[]
+  inflowPeakHour: number
+  sections: Section[]
+  centreline: [number, number][]
+  lagHours: number
+  plan: { width: number; height: number; cellM: number }
+  files: Record<string, string>
+}
+
+export const W = site as unknown as WayanadSite
+export const hasStorm = W.sections.length > 0
+
+/** Timeline hours run 0..lastHour from the export's first hour. */
+export const stormHours = W.hourEnd - W.hourStart + 1
 export const lastHour = stormHours - 1
 
-/** Index of each cross-section in the per-node uniform arrays. */
-export const nodeIndex = new Map(nodes.map((n, i) => [n.id, i]))
-
-function lerpSeries(a: number[] | undefined, t: number): number {
+function lerp(a: number[] | null | undefined, t: number): number {
   if (!a || !a.length) return 0
   const tc = t < 0 ? 0 : t > a.length - 1 ? a.length - 1 : t
   const i = Math.floor(tc)
@@ -27,52 +64,51 @@ function lerpSeries(a: number[] | undefined, t: number): number {
   return i + 1 < a.length ? a[i] + (a[i + 1] - a[i]) * f : a[i]
 }
 
+const ordered = [...W.sections].sort((a, b) => a.s_m - b.s_m)
+export const sections = ordered
+const gaugedSecs = ordered.filter((s) => s.gauged)
+export const stormGauges = gaugedSecs.map((s, i) => ({ id: s.id, name: `G${i + 1}`, role: s.role.replace('_', '-'), section: s }))
+const byId = new Map(ordered.map((s) => [s.id, s]))
+
+export const outletId = gaugedSecs[gaugedSecs.length - 1]?.id ?? ''
+export const inflowId = gaugedSecs[0]?.id ?? ''
+
 export function depthAt(id: string, t: number): number {
-  return lerpSeries(stormEvent?.nodes[id]?.depthM, t)
-}
-export function rainAt(id: string, t: number): number {
-  return lerpSeries(stormEvent?.nodes[id]?.rainMm, Math.floor(t))
-}
-export function velocityAt(id: string, t: number): number {
-  return lerpSeries(stormEvent?.nodes[id]?.velocityMs, t)
+  return lerp(byId.get(id)?.depth_m, t)
 }
 export function dischargeAt(id: string, t: number): number | null {
-  const q = stormEvent?.nodes[id]?.dischargeM3s
-  return q ? lerpSeries(q, t) : null
+  const q = byId.get(id)?.discharge_m3s
+  return q ? lerp(q, t) : null
+}
+export function inflowAt(t: number): number {
+  return lerp(W.inflowM3s, t)
+}
+export const inflow = W.inflowM3s
+
+function argmax(a: number[]) {
+  let k = 0
+  for (let i = 1; i < a.length; i++) if (a[i] > a[k]) k = i
+  return k
 }
 
-/** Basin-mean rain at hour t (mm in that hour). */
-export function basinRainAt(t: number): number {
-  return lerpSeries(stormEvent?.basinRainMm, Math.floor(t))
+/** Hour (timeline) of the inflow peak and of the outlet gauge's discharge peak. */
+export const inflowPeakHour = W.inflowPeakHour - W.hourStart
+export const outletPeakHour = argmax(byId.get(outletId)?.discharge_m3s ?? [0])
+/** Measured on this event's discharge: outlet peak minus inflow peak. */
+export const lagHours = outletPeakHour - inflowPeakHour
+
+export function peakOf(id: string): { hour: number; depthM: number } {
+  const d = byId.get(id)?.depth_m ?? [0]
+  const h = argmax(d)
+  return { hour: h, depthM: d[h] }
 }
 
-/** Mean rain over the upstream cross-sections (mm per hour). */
-export const upstreamRain: number[] = Array.from({ length: stormHours }, (_, t) => {
-  const ids = stormEvent?.upstreamIds ?? []
-  return ids.length ? ids.reduce((s, id) => s + rainAt(id, t), 0) / ids.length : 0
-})
-export const maxRain = Math.max(
-  0.001,
-  ...nodes.map((n) => Math.max(0, ...(stormEvent?.nodes[n.id]?.rainMm ?? [0]))),
-)
-
-export const rainPeakHour = stormEvent?.upstreamRainPeakHour ?? 0
-export const outletPeakHour = stormEvent?.outletPeakHour ?? 0
-export const lagHours = stormEvent?.lagHours ?? 0
-export const outletId = stormEvent?.outletId ?? nodes[nodes.length - 1].id
-
-/** The gauges, upstream to downstream, with their display names. */
-export const stormGauges = (stormEvent?.gaugeIds ?? []).map((id) => {
-  const n = nodes.find((x) => x.id === id)!
-  return { id, name: gaugeName.get(id) ?? id, role: n.gaugeRole?.replace('_', '-') ?? '', node: n }
-})
-
-/** Hour the river carries the most water overall: where reduced motion holds. */
+/** Hour the river carries the most water at the gauges: where reduced motion holds. */
 export const holdHour = (() => {
   let best = 0
   let bestSum = -1
   for (let t = 0; t < stormHours; t++) {
-    const s = nodes.reduce((a, n) => a + depthAt(n.id, t), 0)
+    const s = gaugedSecs.reduce((a, g) => a + depthAt(g.id, t), 0)
     if (s > bestSum) {
       bestSum = s
       best = t
@@ -81,18 +117,26 @@ export const holdHour = (() => {
   return best
 })()
 
-export function peakOf(id: string): { hour: number; depthM: number } {
-  const d = stormEvent?.nodes[id]?.depthM ?? [0]
-  let h = 0
-  for (let i = 1; i < d.length; i++) if (d[i] > d[h]) h = i
-  return { hour: h, depthM: d[h] }
-}
-
-/** "rising" / "falling" / "steady" at hour t, from the depth trend over ±2 h. */
 export function trendAt(id: string, t: number): 'rising' | 'falling' | 'steady' {
   const d = depthAt(id, Math.min(lastHour, t + 2)) - depthAt(id, Math.max(0, t - 2))
-  return d > 0.01 ? 'rising' : d < -0.01 ? 'falling' : 'steady'
+  return d > 0.02 ? 'rising' : d < -0.02 ? 'falling' : 'steady'
 }
 
-/** The hero scene's text alternative, with this storm's numbers. */
-export const sceneLabel = tpl(hero.sceneLabel, { lag: lagHours, ungauged: nodes.length - stormGauges.length })
+const START = Date.parse(W.startTime + 'Z')
+/** "11 Aug, 14:00" for a timeline hour. */
+export function dateAt(t: number): string {
+  const d = new Date(START + (W.hourStart + Math.round(t)) * 3600_000)
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getUTCMonth()]
+  return `${d.getUTCDate()} ${mon}, ${String(d.getUTCHours()).padStart(2, '0')}:00`
+}
+
+/** Length of the modelled reach along its centreline, km. */
+export const reachKm = ordered.length ? ordered[ordered.length - 1].s_m / 1000 : 0
+
+/** The hero scene's text alternative, with this event's numbers. */
+export const sceneLabel = tpl(hero.sceneLabel, {
+  lag: lagHours,
+  km: reachKm.toFixed(0),
+  ungauged: ordered.length - gaugedSecs.length,
+  gauges: gaugedSecs.length,
+})

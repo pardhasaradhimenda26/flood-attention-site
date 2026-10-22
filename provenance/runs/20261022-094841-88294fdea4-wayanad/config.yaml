@@ -1,0 +1,105 @@
+experiment: wayanad_hecras2d_port
+data:
+  dir: wayanad_dataset
+  train_basins:
+  - wy_H1
+  - wy_H2
+  - wy_H3
+  - wy_H4
+  - wy_H5
+  - wy_H6
+  - wy_H7
+  - wy_H8
+  - wy_H9
+  - wy_H10
+  held_out_basins:
+  - wy_T1
+  - wy_T2
+  - wy_T3
+  - wy_T4
+  - wy_T5
+windows:
+  input_steps: 24
+  rollout_steps: 4
+  stride: 6
+split:
+  train_fraction: 0.7
+  val_fraction: 0.1
+  test_fraction: 0.2
+  held_out_full_series: true
+normalisation:
+  method: zscore
+  fit_on: train_basins_only
+  stats:
+    precipitation_mm:
+      mean: 0.0
+      std: 1.0
+    lateral_inflow_m3s:
+      mean: 104.3444
+      std: 354.42111
+    discharge_m3s:
+      mean: 725.48459
+      std: 651.09334
+    water_depth_m:
+      mean: 6.40793
+      std: 2.84124
+  edge_stats:
+    reach_length_m:
+      mean: 8716.66667
+      std: 4298.88649
+    elevation_drop_m:
+      mean: 5.6854
+      std: 5.04913
+  static_stats:
+    elevation_m:
+      mean: 612.67443
+      std: 6.93991
+    channel_slope:
+      mean: 0.0008
+      std: 0.00056
+    channel_width_m:
+      mean: 706.47429
+      std: 140.18787
+    manning_n:
+      mean: 0.035
+      std: 0.0
+    local_area_km2:
+      mean: 4.63714
+      std: 2.80481
+    drainage_area_km2:
+      mean: 15.19946
+      std: 10.41523
+seeds:
+- 0
+- 1
+- 2
+model:
+  hidden_dim: 64
+  n_layers: 3
+  dropout: 0.0
+  heads: 1
+  edge_dim: 2
+  use_time2vec: false
+  time2vec_dim: 8
+  undirected: false
+training:
+  epochs: 40
+  batch_size: 32
+  learning_rate: 0.001
+  optimizer: adam
+  weight_decay: 0.0
+  grad_clip: 1.0
+  early_stopping_patience: 8
+loss:
+  lambda_data: 1.0
+  lambda_physics: 0.05
+  q_scale: 725.48459
+  continuity_floor_fraction: 0.033
+models:
+- persistence
+- mlp
+- gcn
+- gat
+evaluation:
+  attention: evaluation/wayanad_attention.py (chain adaptation)
+  permutation_draws: 1000
