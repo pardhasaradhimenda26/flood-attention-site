@@ -537,7 +537,7 @@ function CameraRig({ q }: { q: Quality }) {
     // and the camera stands to the south-east looking across it.
     const halfH = Math.tan(MathUtils.degToRad(15))
     const fit = 9.5 / (halfH * Math.max(0.55, aspect))
-    const radius = overlay ? Math.min(70, fit * 1.75) : Math.min(80, fit + 4)
+    const radius = overlay ? Math.min(70, fit * 1.75) : Math.min(90, fit * 1.25 + 4)
     const az = 0.55 + drag.current.az - p * 0.2
     const pol = 0.9 + drag.current.pol - p * 0.1
     const desired = new Vector3(

@@ -54,7 +54,7 @@ function Panel({ title, series, steps, cursor, setCursor }: { title: string; ser
   }
 
   return (
-    <div ref={ref}>
+    <div ref={ref} className="min-w-0">
       <h3 className="mb-2 text-small font-semibold text-ink">{title}</h3>
       <svg width={width} height={height} className="block" aria-hidden="true">
         {ticks.map((t) => (
@@ -168,7 +168,8 @@ export function RolloutChart({ data = rollout, scope = 'mean over 8 basins' }: {
         <Panel title="Gauged nodes" series={ro.panels.gauged} steps={steps} cursor={cursor} setCursor={setCursor} />
         <Panel title="Ungauged nodes" series={ro.panels.ungauged} steps={steps} cursor={cursor} setCursor={setCursor} />
       </div>
-      <table className="mt-6 w-full text-small">
+      <div className="mt-6 overflow-x-auto">
+      <table className="w-full min-w-figure-sm text-small">
         <caption className="pb-2 text-left text-micro text-ink-soft">
           Discharge RMSE ({ro.unit}) at forecast hour <span className="num">+{at}</span>, {scope}
           {withCi ? ', with the 95% interval from resampling events and seeds, and MAE' : ''}
@@ -207,6 +208,7 @@ export function RolloutChart({ data = rollout, scope = 'mean over 8 basins' }: {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }

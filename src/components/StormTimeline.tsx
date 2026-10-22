@@ -35,7 +35,7 @@ const DASH = ['', '6 3', '2 3', '10 3 2 3']
 
 export function StormTimeline({ drive = false }: { drive?: boolean }) {
   // Start from the window's width so the first paint already picks the right layout.
-  const [ref, width] = useMeasure<HTMLDivElement>(typeof window === 'undefined' ? 900 : Math.min(1400, window.innerWidth - 32))
+  const [ref, width] = useMeasure<HTMLDivElement>(typeof window === 'undefined' ? 900 : Math.max(288, Math.min(1400, window.innerWidth - 32)))
   const t = useSite((s) => s.heroTime)
   const playing = useSite((s) => s.heroPlaying)
   const settled = useSite((s) => s.heroSettled)

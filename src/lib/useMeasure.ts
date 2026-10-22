@@ -3,7 +3,12 @@ import { useEffect, useRef, useState } from 'react'
 /** Element width in CSS pixels, so SVG text renders at its true size. */
 export function useMeasure<T extends HTMLElement>(initial = 640) {
   const ref = useRef<T>(null)
-  const [width, setWidth] = useState(initial)
+  // Never start wider than the screen: a chart's first render sets its
+  // container's min-content width, and an over-wide start would hold a grid
+  // column open on a phone.
+  const [width, setWidth] = useState(() =>
+    typeof window === 'undefined' || !window.innerWidth ? initial : Math.max(240, Math.min(initial, window.innerWidth - 32)),
+  )
   useEffect(() => {
     const el = ref.current
     if (!el) return
