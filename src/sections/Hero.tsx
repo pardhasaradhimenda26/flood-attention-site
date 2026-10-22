@@ -45,7 +45,8 @@ export function Hero() {
     let po: PerformanceObserver | undefined
     let fallback: number | undefined
     const painted = () => performance.getEntriesByName?.('first-contentful-paint').length > 0
-    if (typeof PerformanceObserver === 'undefined' || painted()) idle()
+    const paintTiming = typeof PerformanceObserver !== 'undefined' && (PerformanceObserver.supportedEntryTypes ?? []).includes('paint')
+    if (!paintTiming || painted()) idle()
     else {
       const once = () => {
         po?.disconnect()
