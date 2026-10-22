@@ -106,23 +106,22 @@ const toX = (col: number) => (col * cellKm - cx) * KM
 const toZ = (row: number) => (row * cellKm - cz) * KM
 const toY = (bedM: number) => ((bedM - bedLo) * VEX) / 1000
 
-type Built = { terrain: BufferGeometry; water: BufferGeometry; vtxWet: Int32Array; stride: number }
+type Built = { terrain: BufferGeometry; water: BufferGeometry; waterWet: Int32Array; stride: number }
 
 /** Wrap the worker's arrays in geometry: no per-vertex work on the main thread. */
 function buildValley(a: ValleyArrays): Built {
-  const position = new BufferAttribute(a.position, 3)
   const terrain = new BufferGeometry()
-  terrain.setAttribute('position', position)
+  terrain.setAttribute('position', new BufferAttribute(a.position, 3))
   terrain.setAttribute('normal', new BufferAttribute(a.normal, 3))
   terrain.setAttribute('aIn', new BufferAttribute(a.inside, 1))
   terrain.setIndex(new BufferAttribute(a.terrainIndex, 1))
   const water = new BufferGeometry()
-  water.setAttribute('position', position)
-  const depth = new BufferAttribute(new Float32Array(a.vtxWet.length), 1)
+  water.setAttribute('position', new BufferAttribute(a.waterPosition, 3))
+  const depth = new BufferAttribute(new Float32Array(a.waterWet.length), 1)
   depth.setUsage(DynamicDrawUsage)
   water.setAttribute('aDepth', depth)
   water.setIndex(new BufferAttribute(a.waterIndex, 1))
-  return { terrain, water, vtxWet: a.vtxWet, stride: a.stride }
+  return { terrain, water, waterWet: a.waterWet, stride: a.stride }
 }
 
 function groundMaterial() {
@@ -536,8 +535,8 @@ function FloodClock({ d, built, uTime }: { d: Data; built: Built; uTime: { value
       const arr = attr.array as Float32Array
       const nw = W.nWet
       const s = W.depthStepM
-      for (let k = 0; k < built.vtxWet.length; k++) {
-        const j = built.vtxWet[k]
+      for (let k = 0; k < built.waterWet.length; k++) {
+        const j = built.waterWet[k]
         arr[k] = j < 0 ? 0 : (d.flood[f0 * nw + j] * (1 - w) + d.flood[f1 * nw + j] * w) * s
       }
       attr.needsUpdate = true

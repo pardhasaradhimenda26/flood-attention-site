@@ -27,9 +27,15 @@ export type ValleyArrays = {
   normal: Float32Array
   /** 1 inside the modelled area, 0 in the fill. */
   inside: Float32Array
-  /** Index of each vertex's cell in the wet-cell list, or −1. */
-  vtxWet: Int32Array
   terrainIndex: Uint32Array
+  /**
+   * The water is its own compact mesh: only the vertices of quads that are
+   * ever wet (about a seventh of the grid), so the per-frame depth update and
+   * its upload stay small.
+   */
+  waterPosition: Float32Array
+  /** Each water vertex's index in the wet-cell list, or −1. */
+  waterWet: Int32Array
   waterIndex: Uint32Array
   stride: number
 }
@@ -184,19 +190,36 @@ export function buildValleyArrays(bed: Float32Array, wetCells: Uint32Array, p: V
       }
     }
   }
+  // Compact the water mesh to the vertices its triangles use.
+  const remap = new Int32Array(count).fill(-1)
+  let nv = 0
+  for (let t = 0; t < wi; t++) if (remap[wet[t]] < 0) remap[wet[t]] = nv++
+  const waterPosition = new Float32Array(nv * 3)
+  const waterWet = new Int32Array(nv)
+  for (let k = 0; k < count; k++) {
+    const v = remap[k]
+    if (v < 0) continue
+    waterPosition[v * 3] = position[k * 3]
+    waterPosition[v * 3 + 1] = position[k * 3 + 1]
+    waterPosition[v * 3 + 2] = position[k * 3 + 2]
+    waterWet[v] = vtxWet[k]
+  }
+  const waterIndex = new Uint32Array(wi)
+  for (let t = 0; t < wi; t++) waterIndex[t] = remap[wet[t]]
   return {
     ground,
     position,
     normal: vertexNormals(position, terrainIndex),
     inside,
-    vtxWet,
     terrainIndex,
-    waterIndex: wet.slice(0, wi),
+    waterPosition,
+    waterWet,
+    waterIndex,
     stride,
   }
 }
 
 /** The buffers to transfer out of the worker. */
 export function transferables(a: ValleyArrays): ArrayBuffer[] {
-  return [a.ground, a.position, a.normal, a.inside, a.vtxWet, a.terrainIndex, a.waterIndex].map((x) => x.buffer as ArrayBuffer)
+  return [a.ground, a.position, a.normal, a.inside, a.terrainIndex, a.waterPosition, a.waterWet, a.waterIndex].map((x) => x.buffer as ArrayBuffer)
 }
