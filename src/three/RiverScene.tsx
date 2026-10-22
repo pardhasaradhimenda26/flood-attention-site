@@ -21,6 +21,7 @@ import { SceneCanvas } from './SceneCanvas'
 import { getQuality, hasWebGL, type Quality } from './useAdaptiveQuality'
 import { W, depthAt, dischargeAt, holdHour, lastHour, sceneLabel, sections, stormGauges, type Section } from '../lib/storm'
 import { readToken } from '../lib/tokens'
+import { buildValleyArrays, type ValleyArrays, type ValleyParams } from './valleyBuild'
 import { useSite } from '../state'
 import { FloodVideo } from '../components/FloodVideo'
 import { fmt } from '../lib/format'
@@ -45,24 +46,53 @@ const VEX = 30
 const KM = 1
 const HOURS_PER_SEC = 12
 
-type Data = { bed: Float32Array; wet: Uint32Array; flood: Uint8Array }
+type Data = { flood: Uint8Array; a: ValleyArrays }
 
-function useWayanadData(): Data | null {
+/**
+ * Fetch the model output and build the valley in a worker; the main thread
+ * only wraps the finished buffers. Without workers, the same code runs here.
+ */
+function useValley(stride: number): Data | null {
   const [d, setD] = useState<Data | null>(null)
   useEffect(() => {
     let alive = true
-    const base = `${import.meta.env.BASE_URL}wayanad/`
-    const get = (f: string) => fetch(base + f).then((r) => {
-      if (!r.ok) throw new Error(f + ' ' + r.status)
-      return r.arrayBuffer()
-    })
-    Promise.all([get('terrain.bin'), get('wet.bin'), get('flood.bin')])
-      .then(([t, w, f]) => alive && setD({ bed: new Float32Array(t), wet: new Uint32Array(w), flood: new Uint8Array(f) }))
-      .catch(() => alive && setD(null))
+    const base = new URL(`${import.meta.env.BASE_URL}wayanad/`, window.location.href).href
+    const p: ValleyParams = { nx: W.nx, ny: W.ny, cellM: W.cellM, bedLo, vex: VEX, km: KM, stride }
+    const local = () => {
+      const get = (f: string) =>
+        fetch(base + f).then((r) => {
+          if (!r.ok) throw new Error(f + ' ' + r.status)
+          return r.arrayBuffer()
+        })
+      Promise.all([get('terrain.bin'), get('wet.bin'), get('flood.bin')])
+        .then(([t, w, f]) => {
+          if (alive) setD({ flood: new Uint8Array(f), a: buildValleyArrays(new Float32Array(t), new Uint32Array(w), p) })
+        })
+        .catch(() => alive && setD(null))
+    }
+    if (typeof Worker === 'undefined') {
+      local()
+      return () => {
+        alive = false
+      }
+    }
+    const worker = new Worker(new URL('./valley.worker.ts', import.meta.url), { type: 'module' })
+    worker.onmessage = (e: MessageEvent<{ ok: true; flood: Uint8Array; a: ValleyArrays } | { ok: false }>) => {
+      worker.terminate()
+      if (!alive) return
+      if (e.data.ok) setD({ flood: e.data.flood, a: e.data.a })
+      else setD(null)
+    }
+    worker.onerror = () => {
+      worker.terminate()
+      if (alive) local()
+    }
+    worker.postMessage({ base, p })
     return () => {
       alive = false
+      worker.terminate()
     }
-  }, [])
+  }, [stride])
   return d
 }
 
@@ -76,125 +106,23 @@ const toX = (col: number) => (col * cellKm - cx) * KM
 const toZ = (row: number) => (row * cellKm - cz) * KM
 const toY = (bedM: number) => ((bedM - bedLo) * VEX) / 1000
 
-/** Fill the ground outside the modelled area: nearest modelled bed, rising with distance. */
-function filledBed(bed: Float32Array) {
-  const n = W.nx * W.ny
-  const out = new Float32Array(n)
-  const dist = new Int32Array(n).fill(-1)
-  const near = new Float32Array(n)
-  const q = new Int32Array(n)
-  let qh = 0
-  let qt = 0
-  for (let i = 0; i < n; i++) {
-    if (!Number.isNaN(bed[i])) {
-      dist[i] = 0
-      near[i] = bed[i]
-      q[qt++] = i
-    }
-  }
-  while (qh < qt) {
-    const i = q[qh++]
-    const r = Math.floor(i / W.nx)
-    const c = i - r * W.nx
-    const nb = [c > 0 ? i - 1 : -1, c < W.nx - 1 ? i + 1 : -1, r > 0 ? i - W.nx : -1, r < W.ny - 1 ? i + W.nx : -1]
-    for (const j of nb) {
-      if (j >= 0 && dist[j] < 0) {
-        dist[j] = dist[i] + 1
-        near[j] = near[i]
-        q[qt++] = j
-      }
-    }
-  }
-  for (let i = 0; i < n; i++) out[i] = dist[i] === 0 ? bed[i] : near[i] + 2.5 * Math.sqrt(Math.max(0, dist[i]))
-  // Nearest-cell fill is piecewise constant and draws terraces; smooth the
-  // fill (three passes of a 9-cell box blur) and leave modelled cells exact.
-  const tmp = new Float32Array(n)
-  const R = 4
-  for (let pass = 0; pass < 3; pass++) {
-    for (let r = 0; r < W.ny; r++) {
-      for (let c = 0; c < W.nx; c++) {
-        let sum = 0
-        let k = 0
-        for (let d = -R; d <= R; d++) {
-          const cc = c + d
-          if (cc >= 0 && cc < W.nx) {
-            sum += out[r * W.nx + cc]
-            k++
-          }
-        }
-        tmp[r * W.nx + c] = sum / k
-      }
-    }
-    for (let r = 0; r < W.ny; r++) {
-      for (let c = 0; c < W.nx; c++) {
-        const i = r * W.nx + c
-        if (dist[i] === 0) continue
-        let sum = 0
-        let k = 0
-        for (let d = -R; d <= R; d++) {
-          const rr = r + d
-          if (rr >= 0 && rr < W.ny) {
-            sum += tmp[rr * W.nx + c]
-            k++
-          }
-        }
-        // Blend toward the smoothed value away from the modelled edge.
-        const w = Math.min(1, dist[i] / 3)
-        out[i] = out[i] * (1 - w) + (sum / k) * w
-      }
-    }
-  }
-  return { y: out, inside: dist.map((v) => (v === 0 ? 1 : 0)) }
-}
-
 type Built = { terrain: BufferGeometry; water: BufferGeometry; vtxWet: Int32Array; stride: number }
 
-function buildValley(d: Data, q: Quality): Built {
-  const stride = q.tier === 'low' ? 2 : 1
-  const nx = Math.floor((W.nx - 1) / stride) + 1
-  const ny = Math.floor((W.ny - 1) / stride) + 1
-  const { y: ground, inside } = filledBed(d.bed)
-  const wetIndex = new Int32Array(W.nx * W.ny).fill(-1)
-  d.wet.forEach((g, k) => (wetIndex[g] = k))
-  const count = nx * ny
-  const pos = new Float32Array(count * 3)
-  const ins = new Float32Array(count)
-  const vtxWet = new Int32Array(count)
-  for (let r = 0; r < ny; r++) {
-    for (let c = 0; c < nx; c++) {
-      const k = r * nx + c
-      const g = r * stride * W.nx + c * stride
-      pos[k * 3] = toX(c * stride)
-      pos[k * 3 + 1] = toY(ground[g])
-      pos[k * 3 + 2] = toZ(r * stride)
-      ins[k] = inside[g]
-      vtxWet[k] = wetIndex[g]
-    }
-  }
-  const all: number[] = []
-  const wet: number[] = []
-  for (let r = 0; r < ny - 1; r++) {
-    for (let c = 0; c < nx - 1; c++) {
-      const a = r * nx + c
-      const b = a + 1
-      const e = a + nx
-      const f = e + 1
-      all.push(a, e, b, b, e, f)
-      if (vtxWet[a] >= 0 || vtxWet[b] >= 0 || vtxWet[e] >= 0 || vtxWet[f] >= 0) wet.push(a, e, b, b, e, f)
-    }
-  }
+/** Wrap the worker's arrays in geometry: no per-vertex work on the main thread. */
+function buildValley(a: ValleyArrays): Built {
+  const position = new BufferAttribute(a.position, 3)
   const terrain = new BufferGeometry()
-  terrain.setAttribute('position', new BufferAttribute(pos, 3))
-  terrain.setAttribute('aIn', new BufferAttribute(ins, 1))
-  terrain.setIndex(all)
-  terrain.computeVertexNormals()
+  terrain.setAttribute('position', position)
+  terrain.setAttribute('normal', new BufferAttribute(a.normal, 3))
+  terrain.setAttribute('aIn', new BufferAttribute(a.inside, 1))
+  terrain.setIndex(new BufferAttribute(a.terrainIndex, 1))
   const water = new BufferGeometry()
-  water.setAttribute('position', new BufferAttribute(pos, 3))
-  const depth = new BufferAttribute(new Float32Array(count), 1)
+  water.setAttribute('position', position)
+  const depth = new BufferAttribute(new Float32Array(a.vtxWet.length), 1)
   depth.setUsage(DynamicDrawUsage)
   water.setAttribute('aDepth', depth)
-  water.setIndex(wet)
-  return { terrain, water, vtxWet, stride }
+  water.setIndex(new BufferAttribute(a.waterIndex, 1))
+  return { terrain, water, vtxWet: a.vtxWet, stride: a.stride }
 }
 
 function groundMaterial() {
@@ -625,10 +553,9 @@ function FloodClock({ d, built, uTime }: { d: Data; built: Built; uTime: { value
 
 /* ----------------------------------------------------------------- scene */
 
-function Scene({ d }: { d: Data }) {
-  const q = getQuality()
-  const built = useMemo(() => buildValley(d, q), [d, q])
-  const ground = useMemo(() => filledBed(d.bed).y, [d])
+function Scene({ d, q }: { d: Data; q: Quality }) {
+  const built = useMemo(() => buildValley(d.a), [d])
+  const ground = d.a.ground
   const uTime = useMemo(() => ({ value: 0 }), [])
   const mats = useMemo(() => ({ ground: groundMaterial(), water: waterMaterial(q, uTime) }), [q, uTime])
   useEffect(
@@ -660,7 +587,8 @@ function Scene({ d }: { d: Data }) {
 export default function RiverScene() {
   const reduced = useSite((s) => s.reducedMotion)
   const playing = useSite((s) => s.heroPlaying)
-  const d = useWayanadData()
+  const q = getQuality()
+  const d = useValley(q.tier === 'low' ? 2 : 1)
   const fallback = <FloodVideo className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16" />
   return (
     <div className="absolute inset-0">
@@ -676,7 +604,7 @@ export default function RiverScene() {
           wrapperProps={{ role: 'img', 'aria-label': sceneLabel }}
           fallback={fallback}
         >
-          <Scene d={d} />
+          <Scene d={d} q={q} />
         </SceneCanvas>
       ) : null}
       {d && hasWebGL() && <GaugeBoards />}
