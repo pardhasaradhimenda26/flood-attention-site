@@ -587,7 +587,9 @@ export default function RiverScene() {
   const reduced = useSite((s) => s.reducedMotion)
   const playing = useSite((s) => s.heroPlaying)
   const q = getQuality()
-  const d = useValley(q.tier === 'low' ? 2 : 1)
+  // Every second cell (176 × 160 vertices) unless the device is high tier:
+  // on a phone the full grid is denser than the pixels it covers.
+  const d = useValley(q.tier === 'high' ? 1 : 2)
   const fallback = <FloodVideo className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16" />
   return (
     <div className="absolute inset-0">

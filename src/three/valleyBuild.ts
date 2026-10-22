@@ -16,7 +16,7 @@ export type ValleyParams = {
   vex: number
   /** World units per kilometre. */
   km: number
-  /** Vertex stride over the grid (2 on the low quality tier). */
+  /** Vertex stride over the grid (2 below the high quality tier). */
   stride: number
 }
 
