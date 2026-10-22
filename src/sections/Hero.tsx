@@ -18,18 +18,56 @@ export function Hero() {
   const [gl, setGl] = useState<boolean | null>(null)
   const ready = gl !== null
   useEffect(() => {
-    const go = () => setGl(hasWebGL())
+    let cancelled = false
+    let cancelIdle = () => {}
+    const go = () => {
+      if (!cancelled) setGl(hasWebGL())
+    }
     const w = window as Window & {
       requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number
       cancelIdleCallback?: (id: number) => void
     }
-    const ric = w.requestIdleCallback
-    if (ric) {
-      const id = ric(go, { timeout: 1500 })
-      return () => w.cancelIdleCallback?.(id)
+    const idle = () => {
+      if (cancelled) return
+      const ric = w.requestIdleCallback
+      if (ric) {
+        const id = ric(go, { timeout: 1500 })
+        cancelIdle = () => w.cancelIdleCallback?.(id)
+      } else {
+        const id = window.setTimeout(go, 300)
+        cancelIdle = () => window.clearTimeout(id)
+      }
     }
-    const id = window.setTimeout(go, 300)
-    return () => window.clearTimeout(id)
+    // Wait for the first contentful paint before asking for the scene, so
+    // three.js is never on the headline's critical path, even when the first
+    // frame is slow to reach the screen. The timeout covers browsers without
+    // paint timing.
+    let po: PerformanceObserver | undefined
+    let fallback: number | undefined
+    const painted = () => performance.getEntriesByName?.('first-contentful-paint').length > 0
+    if (typeof PerformanceObserver === 'undefined' || painted()) idle()
+    else {
+      const once = () => {
+        po?.disconnect()
+        window.clearTimeout(fallback)
+        idle()
+      }
+      try {
+        po = new PerformanceObserver((list) => {
+          if (list.getEntriesByName('first-contentful-paint').length) once()
+        })
+        po.observe({ type: 'paint', buffered: true })
+        fallback = window.setTimeout(once, 4000)
+      } catch {
+        idle()
+      }
+    }
+    return () => {
+      cancelled = true
+      po?.disconnect()
+      window.clearTimeout(fallback)
+      cancelIdle()
+    }
   }, [])
   const [h1a, h1b] = hero.headline.split('. ')
 
