@@ -15,7 +15,7 @@ describe('WebGL fallback', () => {
     const video = (await screen.findByLabelText(hero.fallbackLabel, {}, { timeout: 3000 })) as HTMLVideoElement
     expect(video.tagName).toBe('VIDEO')
     expect(video.getAttribute('src')).toMatch(/wayanad\/inundation_T1\.mp4$/)
-    expect(video.getAttribute('poster')).toMatch(/wayanad\/plan\.png$/)
+    expect(video.getAttribute('poster')).toMatch(/wayanad\/poster\.jpg$/)
   })
 })
 

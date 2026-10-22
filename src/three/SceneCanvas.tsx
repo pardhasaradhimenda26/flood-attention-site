@@ -37,6 +37,31 @@ function FrameCounter({ name }: { name: string }) {
   return null
 }
 
+/*
+  A device that cannot animate a scene gets its fallback instead of a slide
+  show. While the loop runs continuously, after a short warm-up, if the median
+  frame interval over 40 frames is above 50 ms (under 20 frames a second) at
+  the lowest pixel ratio, or above 100 ms at any, the scene gives way.
+*/
+function SlowGuard({ active, onSlow, atFloor }: { active: boolean; onSlow: () => void; atFloor: boolean }) {
+  const dts = useRef<number[]>([])
+  const seen = useRef(0)
+  useFrame((_, dt) => {
+    if (!active) {
+      dts.current = []
+      seen.current = 0
+      return
+    }
+    if (++seen.current <= 10) return
+    dts.current.push(dt)
+    if (dts.current.length < 40) return
+    const sorted = [...dts.current].sort((a, b) => a - b)
+    dts.current = []
+    if (sorted[20] > 0.1 || (sorted[20] > 0.05 && atFloor)) onSlow()
+  })
+  return null
+}
+
 /** Demand-mode canvases draw nothing until asked; ask whenever one comes into view. */
 function DrawOnVisible({ visible }: { visible: boolean }) {
   const invalidate = useThree((s) => s.invalidate)
@@ -116,6 +141,7 @@ export function SceneCanvas({
   const wrap = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [lost, setLost] = useState(false)
+  const onSlow = useCallback(() => setLost(true), [])
   const [dprMax, setDprMax] = useState(q.dpr[1])
   const [gl] = useState(() => hasWebGL())
   const [compiled, setCompiled] = useState(false)
@@ -165,6 +191,11 @@ export function SceneCanvas({
             flipflops={3}
           />
           <DrawOnVisible visible={visible && compiled} />
+          <SlowGuard
+            active={visible && compiled && frameloop === 'always' && !document.hidden}
+            atFloor={dprMax <= q.dpr[0] + 1e-6 || dprMax <= 1}
+            onSlow={onSlow}
+          />
           {countFrames && <FrameCounter name={name} />}
           {children}
           <Warmup onReady={markCompiled} />

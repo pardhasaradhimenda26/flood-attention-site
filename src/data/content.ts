@@ -25,12 +25,12 @@ export const hero = {
   lede:
     'This is the Kabini river in Wayanad, Kerala, in the August 2018 floods, as a computer model of the river recreates it. Four places along it have a sensor that records how high the water is. Everywhere else, nobody knows. This project teaches a computer to estimate the water at those other places, from the four sensors and from what is coming down from upstream.',
   sceneLabel:
-    'The Kabini valley in Wayanad seen from the south-east, as the HEC-RAS model recreates the August 2018 flood. Water enters at the upstream end and spreads over the low ground as it moves down the valley; the peak reaches the far end about {lag} hours after the inflow peaks. The modelled reach is {km} km long. {gauges} gauge towers show the depth they measure; the other {ungauged} marked places across the river have no reading. Height is exaggerated so the valley can be seen.',
+    'The Kabini valley on the Kerala–Karnataka border, seen from the south-east over satellite imagery, as the HEC-RAS model recreates the August 2018 flood. Brown floodwater enters at the upstream end, near Dasanakkara, and spreads over the farmland as it moves down the valley past Byrakkuppa and Marakkadavu to Gandatturu; the peak reaches the far end about {lag} hours after the inflow peaks. The modelled reach is {km} km long. {gauges} gauge towers show the depth they measure; the other {ungauged} marked places across the river, Bavali among them, have no reading. Height is exaggerated so the valley can be seen.',
   fallbackLabel:
-    'Animation of the modelled flood spreading across the Kabini valley in Wayanad during August 2018, seen from above, coloured by water depth.',
+    'Animation of the modelled flood spreading across the Kabini valley in Wayanad during August 2018, seen from above over satellite imagery, the water darker where deeper.',
   timelineLabel: 'Flood time',
   scaleNote:
-    'Height is exaggerated 30 times, for the ground and the water alike, so depth stays in proportion to the valley. Ground outside the modelled area is a neutral fill, not data. Every depth and flow here is HEC-RAS 2D model output for the observed 2018 inflow (event T1), not yet validated against observations.',
+    'Height is exaggerated 30 times, for the ground and the water alike, so depth stays in proportion to the valley. The water moves in the direction and at the relative speed the model computes, sped up {speedup} times; it is drawn as silt-laden floodwater, darker where deeper. Ground outside the modelled area is a neutral fill, not data. Every depth, flow and velocity here is HEC-RAS 2D model output for the observed 2018 inflow (event T1), not yet validated against observations. The ground is satellite imagery for context only: Sentinel-2 cloudless 2016 by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2016), CC BY 4.0. Place names © OpenStreetMap contributors.',
   replay: 'Replay the flood',
   frozen: 'Reduced motion: held at the hour the gauges are deepest.',
   tableToggle: 'Read the flood as a table',

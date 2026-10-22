@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { profile, profileBottom, profileTop, stations } from '../lib/stations'
 import { WaterMark } from './SectionHead'
 
@@ -18,9 +18,29 @@ function yOf(elevationM: number) {
   return TOP + f * (100 - TOP - BOT)
 }
 
+/*
+  Station links are touch targets: at least 24 px tall and 24 px apart
+  (WCAG 2.5.8). Where two stations sit closer than that on the profile, their
+  labels are pushed apart, keeping order; the staff's ticks stay at the exact
+  elevations.
+*/
+const MIN_GAP_PX = 26
+function spread(tops: number[], gap: number): number[] {
+  const out = [...tops]
+  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] + gap)
+  for (let i = out.length - 2; i >= 0; i--) out[i] = Math.min(out[i], out[i + 1] - gap)
+  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] + gap)
+  return out
+}
+
 export function StageRuler() {
   const [reading, setReading] = useState({ elev: profileTop, hours: 0 })
+  const [railPx, setRailPx] = useState(() => (typeof window !== 'undefined' ? window.innerHeight : 900))
   const raf = useRef(0)
+  const labelTops = useMemo(
+    () => spread(stations.map((s) => yOf(s.elevationM) * 0.92 + 3), (MIN_GAP_PX / Math.max(1, railPx)) * 100),
+    [railPx],
+  )
 
   useEffect(() => {
     const update = () => {
@@ -44,12 +64,16 @@ export function StageRuler() {
     const onScroll = () => {
       if (!raf.current) raf.current = requestAnimationFrame(update)
     }
+    const onResize = () => {
+      setRailPx(window.innerHeight)
+      onScroll()
+    }
     update()
     window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
+    window.addEventListener('resize', onResize)
     return () => {
       window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
+      window.removeEventListener('resize', onResize)
       cancelAnimationFrame(raf.current)
     }
   }, [])
@@ -74,12 +98,12 @@ export function StageRuler() {
         </div>
 
         {/* station marks: links down the profile */}
-        {stations.map((s) => (
+        {stations.map((s, i) => (
           <a
             key={s.key}
             href={`#${s.key}`}
-            className="pointer-events-auto absolute left-8 flex -translate-y-1/2 items-center gap-1 rounded-sm px-1 text-micro text-fg-soft no-underline mix-blend-normal hover:text-fg"
-            style={{ top: `${yOf(s.elevationM) * 0.92 + 3}%` }}
+            className="pointer-events-auto absolute left-8 flex min-h-6 min-w-6 -translate-y-1/2 items-center gap-1 rounded-sm px-1 text-micro text-fg-soft no-underline mix-blend-normal hover:text-fg"
+            style={{ top: `${labelTops[i]}%` }}
             aria-label={`${s.title}, station ${s.nodeLabel}, ${s.elevationM.toFixed(0)} metres`}
           >
             <span className="h-px w-2 bg-current" aria-hidden="true" />

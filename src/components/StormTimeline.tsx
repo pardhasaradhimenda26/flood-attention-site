@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react'
 import { scaleLinear } from 'd3-scale'
 import { line } from 'd3-shape'
-import { hero } from '../data/content'
+import { hero, tpl } from '../data/content'
 import { useSite } from '../state'
 import { useMeasure } from '../lib/useMeasure'
 import { fmt } from '../lib/format'
 import {
+  FLOW_SPEEDUP,
   dateAt,
   depthAt,
   holdHour,
@@ -235,7 +236,7 @@ export function StormTimeline({ drive = false }: { drive?: boolean }) {
         ) : null}
       </div>
       {reduced && <p className="mt-1 text-micro text-foam-soft">{hero.frozen}</p>}
-      <p className="mt-2 max-w-measure text-micro text-foam-soft">{hero.scaleNote}</p>
+      <p className="mt-2 max-w-measure text-micro text-foam-soft">{tpl(hero.scaleNote, { speedup: FLOW_SPEEDUP })}</p>
       <p className="sr-only" aria-live="polite">
         {said}
       </p>

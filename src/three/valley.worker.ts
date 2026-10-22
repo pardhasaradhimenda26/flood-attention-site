@@ -6,7 +6,7 @@ import { buildValleyArrays, transferables, type ValleyParams } from './valleyBui
 
 type Ctx = {
   onmessage: ((e: MessageEvent<{ base: string; p: ValleyParams }>) => void) | null
-  postMessage: (m: unknown, transfer?: ArrayBuffer[]) => void
+  postMessage: (m: unknown, transfer?: Transferable[]) => void
 }
 const ctx = self as unknown as Ctx
 
@@ -18,9 +18,17 @@ ctx.onmessage = async (e) => {
         if (!r.ok) throw new Error(f + ' ' + r.status)
         return r.arrayBuffer()
       })
-    const [t, w, f] = await Promise.all([get('terrain.bin'), get('wet.bin'), get('flood.bin')])
+    // Imagery is context, not data: without it the ground falls back to the plain survey style.
+    const img = fetch(base + 'imagery.jpg')
+      .then((r) => (r.ok ? r.blob() : Promise.reject(new Error('imagery ' + r.status))))
+      .then((b) => createImageBitmap(b))
+      .catch(() => null)
+    const [t, w, f, v] = await Promise.all([get('terrain.bin'), get('wet.bin'), get('flood.bin'), get('vel.bin')])
     const a = buildValleyArrays(new Float32Array(t), new Uint32Array(w), p)
-    ctx.postMessage({ ok: true, flood: new Uint8Array(f), a }, [f, ...transferables(a)])
+    const bitmap = await img
+    const transfer: Transferable[] = [f, v, ...transferables(a)]
+    if (bitmap) transfer.push(bitmap)
+    ctx.postMessage({ ok: true, flood: new Uint8Array(f), vel: new Int8Array(v), img: bitmap, a }, transfer)
   } catch (err) {
     ctx.postMessage({ ok: false, error: String(err) })
   }

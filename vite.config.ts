@@ -50,7 +50,7 @@ function staticShell(): Plugin {
           ['meta', { property: 'og:image', content: og }],
           ['meta', { property: 'og:image:width', content: '1200' }],
           ['meta', { property: 'og:image:height', content: '630' }],
-          ['meta', { property: 'og:image:alt', content: `The Kabini valley in Wayanad flooding in the HEC-RAS model of the August 2018 flood, with four gauge boards reading depth and discharge, beside the headline “The flood comes down the valley. Only four places can see it.” and a timeline marking the ${lagHours}-hour lag from inflow peak to outlet peak.` }],
+          ['meta', { property: 'og:image:alt', content: `The Kabini valley on the Kerala–Karnataka border in satellite imagery, with brown floodwater from the HEC-RAS model of the August 2018 flood and four gauge boards at Dasanakkara, Byrakkuppa, Marakkadavu and Gandatturu reading depth and discharge, beside the headline “The flood comes down the valley. Only four places can see it.”, a locator map, and a timeline marking the ${lagHours}-hour lag from inflow peak to outlet peak.` }],
           ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
           ['meta', { name: 'twitter:title', content: title }],
           ['meta', { name: 'twitter:description', content: desc }],

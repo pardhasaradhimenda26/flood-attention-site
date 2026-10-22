@@ -28,3 +28,4 @@ __pycache__/
 
 # The delivered Wayanad archive (4.9 GB): never committed; its sha256 is in provenance/MANIFEST.json
 HEC-RAS-2D-FINAL-DATASET.zip
+.review/

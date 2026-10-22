@@ -87,8 +87,33 @@ All from the run above, intervals from a clustered bootstrap resampling held-out
   - The timeline shows the inflow hydrograph (the model has no rain, so rain drops are gone) and the four gauges' rise. The inflow peak (11 Aug 00:00) and outlet peak (11 Aug 10:00) are marked and the 10 h lag is dimensioned.
 - **River-to-graph morph:** now starts from the real place (the T1 maximum-depth map) and ends at the 7-node chain.
 - **New Act 4 section, "A real river, modelled: first numbers":** two-layer claims, status figures (attention beside its confound baseline at equal size), the per-step chart with interval bands, and a dated provenance line (run, config hash, archive sha256, plan).
-- **Fallback video:** `public/wayanad/inundation_T1.mp4`, the whole month on the 25 m grid with a caption, date and depth scale burned in (1406×1280, 24 fps, 0.9 MB, H.264). It is the hero's no-WebGL fallback and reusable by the Taiwan team.
+- **Fallback video:** `public/wayanad/inundation_T1.mp4` shows the whole month on the 25 m grid over the satellite imagery, in the hero's water colours. The caption, date, credits and depth scale are burned in (1406×1280, 24 fps, 1.4 MB, H.264). It is the hero's fallback when WebGL is missing or software-rendered, and the Taiwan team can reuse it. Its frame at the inflow peak is the poster (`poster.jpg`, 960 px wide).
 - **Provenance:** `provenance/wayanad/` holds the extracted `nodes.csv`, `edges.csv` (with both measured travel-time columns), `timeseries.csv`, `basins.csv`, `checks.json`, `arrival.csv`, `centreline.csv` and the information-test log; `provenance/runs/<run>/` holds the run outputs. `MANIFEST.json` records the archive's sha256, the extraction scripts' hashes and the site assets' hashes. `npm run regen-data` rebuilds `results.ts` identically.
+
+## Hero rework: the model's own flow, the real place (22 October 2026)
+
+Feedback on the first version: the flood animation did not look like water, and it did not show where the place is. What changed:
+
+- **Water moves with the model's velocity.** `vel.bin` holds the dataset's `VX` and `VY` on the 50 m grid, on the same two-hourly frames as depth. Each 50 m value is the depth-weighted mean of its four 25 m pixels, stored as int8 at 0.04 m/s (the model's maximum on this grid is 4.36 m/s).
+  - The water surface is a flow map. Its ripple pattern is advected by each point's interpolated velocity, sped up 100 times; the scale note says so.
+  - Faster water is rougher and breaks white, in streaks drawn out along the current.
+  - Height is still bed plus modelled depth. Nothing about the water is invented.
+- **Floodwater colour.** The water is silt-brown, darker where deeper, with sky reflection and sun glint. These are new tokens `silt-1..3`, used by the hero's water only; every chart keeps the blue depth ramp. Shallow sheet flow is translucent over the ground.
+- **The real place underneath.** The ground is EOX "Sentinel-2 cloudless 2016" (CC BY 4.0; the later yearly mosaics are non-commercial). `data/export_wayanad_imagery.py` warps it onto the model's UTM 43N grid at 12.5 m.
+  - Every output pixel's centre is converted to latitude and longitude and sampled bilinearly. The download's sha256, the request, the retrieval date and the licence are in `public/wayanad/imagery.json`.
+  - It is context only: nothing from it enters the dataset, the models or any result.
+  - **Independent check of the recovered georeferencing:** the model's maximum flood extent, drawn on the imagery, follows the Kabini's channel and its cleared floodplain along the whole reach.
+- **Locations.** Section coordinates are converted from the dataset's UTM 43N (Snyder's series; under 1 m here). Place names are OpenStreetMap reverse geocodes at each section, retrieved 22 October 2026 (`data/wayanad_places.csv`): G1 Dasanakkara, xs_01 Bavali, G2 Byrakkuppa, G3 Marakkadavu and G4 Gandatturu.
+  - The reach runs along the Kerala–Karnataka border, from 11.806° N, 76.090° E to 11.921° N, 76.231° E.
+  - The dataset's "Mananthavady" names the source of the inflow hydrograph. The town lies about 9 km west of the modelled reach.
+  - Shown on the gauge boards, on "no gauge" tags at the ungauged sections, in the gauge table (place, district and state, coordinates) and in a locator map. The map has north up, a 5 km bar, the corner coordinates and a ring marking the ground in view.
+- **Camera.** The flood's first pass (12 s) is a flight down the valley from the first gauge to the last, close enough to see the current. It then pulls back to all four gauges. Reduced motion holds the overview.
+  - After the first pass the water keeps flowing at 30 frames/s while the hero is on screen.
+  - On wide screens, boards and tags never draw under the text column, and the reach is framed to its right.
+- **Software rendering.** PageSpeed Insights' machines render WebGL in software (SwiftShader). There the hero cost 90–110 ms of main-thread time per frame (desktop TBT 1,820 ms, Performance 64).
+  - Software renderers (SwiftShader, llvmpipe, Microsoft Basic Render) now count as no WebGL and get the video.
+  - Any device whose median frame interval stays above 50 ms at its lowest pixel ratio, or above 100 ms at any, also gets the video (`SlowGuard` in `SceneCanvas.tsx`).
+- **Touch targets.** The rail's station links were 16 px tall and as little as 7 px apart (PageSpeed desktop accessibility 97). They are now at least 24 px tall and 26 px apart, and the staff's ticks stay at the exact elevations.
 
 ## Performance and live verification (22 October 2026)
 

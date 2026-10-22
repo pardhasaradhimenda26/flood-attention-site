@@ -1,6 +1,6 @@
 // GENERATED FILE — DO NOT HAND-EDIT.
 // Written by scripts/generate_data.py from the committed inputs in provenance/
-// (MANIFEST.json sha256 5173382e799dd4a5). Reproduce with: npm run regen-data
+// (MANIFEST.json sha256 7d79538f2c850cbd). Reproduce with: npm run regen-data
 // Any manual change here is overwritten, and CI fails if this file drifts.
 
 /** verified: measured and reproducible from provenance/. qualified: measured, with a
@@ -115,7 +115,7 @@ export type Provenance = {
 }
 
 export const provenance: Provenance = {
-  "thesisCommit": "7e4f7bcd143d7f1e9c88eaf03dd23796ea8be753",
+  "thesisCommit": "4b608bac1e982a65b894ef0e5ef227b58acd5d22",
   "datasetVersion": "864b79098c",
   "runs": [
     {

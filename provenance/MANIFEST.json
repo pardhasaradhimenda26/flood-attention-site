@@ -1,6 +1,6 @@
 {
   "about": "Inputs behind src/data/results.ts. Copied from the thesis repository by scripts/generate_data.py; reproduce results.ts with `npm run regen-data`.",
-  "thesisCommit": "7e4f7bcd143d7f1e9c88eaf03dd23796ea8be753",
+  "thesisCommit": "4b608bac1e982a65b894ef0e5ef227b58acd5d22",
   "dataset": {
     "version": "864b79098c",
     "generator": "data/generate_flood_dataset.py",
@@ -316,19 +316,25 @@
     },
     "scripts": {
       "data/extract_wayanad.py": "45b0fd5ecc5f06766ad7fddc6ab708eee007033bceba72b63dee469f56bfd20c",
-      "data/export_wayanad_site.py": "19898861abafa068774d32de1a806629461c283a5bb737db39fe4c686461fedd",
+      "data/export_wayanad_site.py": "84ac808dcb947c80a2359bbbd930c5c9e84937c2fce5ab4c7f5cb147af8ee5ab",
+      "data/export_wayanad_imagery.py": "d6eaff1792a7a9d01b6dfce4d796e317f5f7ca573ae2f63700f77096002b0663",
+      "data/wayanad_places.csv": "05c140a8600998af3f033f9a388169897c04deb7d44c88d5a492d15241105436",
       "data/make_wayanad_config.py": "cac9ade95ef9ae30951cac26dfc113b38f16f5ab297dbf0c7b718358749d2c7b",
       "evaluation/wayanad_attention.py": "d3962df6bebea50b5f5a62c03ae02abcc21eec3915e441910d6a401557f6f2b3",
       "configs/wayanad.yaml": "88294fdea45dd4a744682a0b917f501fe99fb9f854992df091b55449729e27f8"
     },
     "siteAssets": {
       "flood.bin": "ec9611ef393c6887936664069d009e2103369a272c7f6447a7bf691d50c309a8",
-      "inundation_T1.mp4": "e0641fb6053be9e69ffa88e8b6c1886f6871210d0c2bef3fec2c54788c1d9c8f",
+      "imagery.jpg": "6b4350e614c1f58efc16469c4c4e8c6607266186a0b1553ecb54e9cd39c0627c",
+      "imagery.json": "fe6358569ea93a870e2ebd9206434589aeef3398c7fd2b7f55cc12d411e0dacd",
+      "inundation_T1.mp4": "d52ceba5f2369e0e74d67cb88a86f7ab7249d3c646961540e0650a70afe4fa2b",
       "plan.png": "3e1a5c16a38c03b2e7d0f483d3378215934bd8eab882a40d24dc74c046eceb3d",
-      "site.json": "685092f8bab3cc15e3bbcaff6c5ff1eec1eed07570b61b43ee91805d297b798d",
+      "poster.jpg": "a03765d0c7ea82a2bf8e2b55a836f4400a8b4cfa878b46235373a087625d4456",
+      "site.json": "82c76737d9fea3d0bcfac03233c3756e06fb4e614ea6bc228f02b5869de4d671",
       "terrain.bin": "19e0912eebe550e49e45924b0869a9461705e658428f6678bad588542d695b8f",
+      "vel.bin": "994f274254dea564b192ebd7f9220258b2ecf398080ed8e4b4e257d9f5f7adf9",
       "wet.bin": "6d27204ac7aa1a23732b34ffdda7477d47b0b954557772849d27d413b48cc002"
     },
-    "note": "Extracted by data/extract_wayanad.py from the delivered archive (sha256 above); site assets by data/export_wayanad_site.py."
+    "note": "Extracted by data/extract_wayanad.py from the delivered archive (sha256 above); site assets by data/export_wayanad_site.py. imagery.jpg (data/export_wayanad_imagery.py; provenance in imagery.json) is Sentinel-2 cloudless 2016 by EOX, CC BY 4.0, context under the hero only; place names (data/wayanad_places.csv) are OpenStreetMap's. Neither enters the dataset, the models or any result."
   }
 }

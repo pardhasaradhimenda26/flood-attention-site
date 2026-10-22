@@ -1,0 +1,22 @@
+{
+ "attribution": "Sentinel-2 cloudless 2016 (https://cloudless.eox.at) by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2016), CC BY 4.0",
+ "licence": "CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)",
+ "source": "https://tiles.maps.eox.at/wms",
+ "layer": "s2cloudless",
+ "request": "https://tiles.maps.eox.at/wms?service=WMS&request=GetMap&version=1.1.1&layers=s2cloudless&styles=&srs=EPSG:4326&bbox=76.076890,11.791104,76.246493,11.944317&width=2310&height=2118&format=image/png",
+ "retrieved": "2026-10-22",
+ "downloadSha256": "47006020b4c1474d7fc9fda932aeefbc217cf30031d489fb3b1f713f623bc486",
+ "grid": {
+  "crs": "EPSG:32643",
+  "originUtm": [
+   617752.690376181,
+   1320190.249024215
+  ],
+  "pixelM": 12.5,
+  "width": 1404,
+  "height": 1280
+ },
+ "resampling": "bilinear, at each output pixel centre converted from UTM 43N to WGS 84",
+ "outputSha256": "6b4350e614c1f58efc16469c4c4e8c6607266186a0b1553ecb54e9cd39c0627c",
+ "use": "context under the hero's modelled flood only; not part of the dataset or any result"
+}

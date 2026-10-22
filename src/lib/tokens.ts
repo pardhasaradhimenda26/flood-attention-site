@@ -15,6 +15,9 @@ const FALLBACK: Record<string, string> = {
   w3: '#4f90a8',
   w4: '#2c6a84',
   w5: '#1a4a5f',
+  'silt-1': '#8c7853',
+  'silt-2': '#634f35',
+  'silt-3': '#3b3022',
   signal: '#c2185b',
   'signal-lift': '#f06aa5',
 }

@@ -43,6 +43,14 @@ const TABLE: Record<Tier, Omit<Quality, 'tier'>> = {
 const WEAK_GPU = /(mali-[2-4]\d{2}|mali-t|mali-g(31|51|52|57)|adreno \(tm\) [2-5]\d{2}|powervr|swiftshader|llvmpipe|software|intel\(r\) hd graphics [2-5]\d{2,3}|mesa offscreen)/i
 const STRONG_GPU = /(apple m\d|apple gpu|nvidia|geforce|rtx|radeon rx|radeon pro|adreno \(tm\) (7[3-9]\d|8\d{2})|iris xe|arc)/i
 
+/*
+  Software rasterisers draw WebGL on the CPU, on the page's main thread's
+  behalf: a 3D scene there is a stream of long tasks (PageSpeed Insights'
+  machines measured 90-110 ms per hero frame). They count as no WebGL, so the
+  page shows its video and SVG fallbacks.
+*/
+const SOFTWARE_GL = /(swiftshader|llvmpipe|softpipe|microsoft basic render|mesa offscreen|software)/i
+
 let webglCache: boolean | null = null
 let rendererCache = ''
 
@@ -61,6 +69,9 @@ export function hasWebGL(): boolean {
     const ext = gl.getExtension('WEBGL_debug_renderer_info')
     rendererCache = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : String(gl.getParameter(gl.RENDERER))
     gl.getExtension('WEBGL_lose_context')?.loseContext()
+    // ?tier= forces a scene for testing, even on a software renderer.
+    const forced = new URLSearchParams(window.location.search).get('tier')
+    if (SOFTWARE_GL.test(rendererCache) && !forced) return (webglCache = false)
     return (webglCache = true)
   } catch {
     return (webglCache = false)

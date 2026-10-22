@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest'
-import { W, dateAt, depthAt, inflowPeakHour, lagHours, lastHour, outletId, outletPeakHour, peakOf, sections, stormGauges } from './storm'
+import { hero } from '../data/content'
+import {
+  FLOW_SPEEDUP,
+  W,
+  dateAt,
+  depthAt,
+  gridAtChainage,
+  inflowPeakHour,
+  lagHours,
+  lastHour,
+  outletId,
+  outletPeakHour,
+  peakOf,
+  sections,
+  stormGauges,
+} from './storm'
 
 describe('the hero flood (Wayanad HEC-RAS 2D, event T1)', () => {
   it('has the export the hero needs: sections, four gauges with series, inflow', () => {
@@ -33,5 +48,35 @@ describe('the hero flood (Wayanad HEC-RAS 2D, event T1)', () => {
     const b = depthAt(id, 11)
     expect(depthAt(id, 10.5)).toBeCloseTo((a + b) / 2, 6)
     expect(dateAt(0)).toMatch(/^\d{1,2} Aug, \d{2}:00$/)
+  })
+
+  it('places every section on the map: coordinates inside the grid, and a named place for each gauge', () => {
+    const { nw, se } = W.corners
+    for (const s of sections) {
+      expect(s.lat).toBeGreaterThan(se[0])
+      expect(s.lat).toBeLessThan(nw[0])
+      expect(s.lon).toBeGreaterThan(nw[1])
+      expect(s.lon).toBeLessThan(se[1])
+    }
+    for (const g of stormGauges) expect(g.place).toBeTruthy()
+    expect(W.places.source).toMatch(/OpenStreetMap/)
+    expect(W.velStepMs).toBeGreaterThan(0)
+  })
+
+  it('credits what is not model output, and says the water is sped up', () => {
+    expect(hero.scaleNote).toContain('{speedup}')
+    expect(FLOW_SPEEDUP).toBeGreaterThan(1)
+    expect(hero.scaleNote).toMatch(/Sentinel-2 cloudless 2016 by EOX/)
+    expect(hero.scaleNote).toMatch(/CC BY 4\.0/)
+    expect(hero.scaleNote).toMatch(/OpenStreetMap contributors/)
+    expect(hero.scaleNote).toMatch(/not yet validated/)
+  })
+
+  it('finds points along the river between sections, for the camera flight', () => {
+    for (const sec of sections) expect(gridAtChainage(sec.s_m)).toEqual(sec.grid)
+    const [a, b] = [sections[0], sections[1]]
+    const mid = gridAtChainage((a.s_m + b.s_m) / 2)
+    expect(mid[0]).toBeCloseTo((a.grid[0] + b.grid[0]) / 2, 6)
+    expect(mid[1]).toBeCloseTo((a.grid[1] + b.grid[1]) / 2, 6)
   })
 })

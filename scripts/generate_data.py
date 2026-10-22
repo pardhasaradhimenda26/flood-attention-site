@@ -728,7 +728,8 @@ DATASET_FILES = ["nodes.csv", "edges.csv", "basins.csv"]
 # committed in full: the brief's reproducibility rules do not relax because
 # the data came from someone else.
 WAYANAD_FILES = ["nodes.csv", "edges.csv", "basins.csv", "timeseries.csv", "checks.json", "arrival.csv", "centreline.csv"]
-WAYANAD_SCRIPTS = ["data/extract_wayanad.py", "data/export_wayanad_site.py", "data/make_wayanad_config.py",
+WAYANAD_SCRIPTS = ["data/extract_wayanad.py", "data/export_wayanad_site.py", "data/export_wayanad_imagery.py",
+                   "data/wayanad_places.csv", "data/make_wayanad_config.py",
                    "evaluation/wayanad_attention.py", "configs/wayanad.yaml"]
 SITE_ASSETS = os.path.join(SITE, "public", "wayanad")
 
@@ -843,7 +844,10 @@ def sync_provenance(repo):
             "source": wchecks.get("source"),
             "scripts": {f: sha256_file(os.path.join(repo, f)) for f in WAYANAD_SCRIPTS if os.path.exists(os.path.join(repo, f))},
             "siteAssets": {f: sha256_file(os.path.join(SITE_ASSETS, f)) for f in sorted(os.listdir(SITE_ASSETS))} if os.path.isdir(SITE_ASSETS) else {},
-            "note": "Extracted by data/extract_wayanad.py from the delivered archive (sha256 above); site assets by data/export_wayanad_site.py.",
+            "note": ("Extracted by data/extract_wayanad.py from the delivered archive (sha256 above); site assets by "
+                     "data/export_wayanad_site.py. imagery.jpg (data/export_wayanad_imagery.py; provenance in imagery.json) is "
+                     "Sentinel-2 cloudless 2016 by EOX, CC BY 4.0, context under the hero only; place names (data/wayanad_places.csv) "
+                     "are OpenStreetMap's. Neither enters the dataset, the models or any result."),
         }
     with open(os.path.join(PROV, "MANIFEST.json"), "w", encoding="utf-8", newline="\n") as fh:
         json.dump(manifest, fh, indent=2, ensure_ascii=False)
