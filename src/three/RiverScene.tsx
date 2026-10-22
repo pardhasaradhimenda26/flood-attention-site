@@ -235,7 +235,7 @@ function groundMaterial() {
         albedo = mix(uGround * 1.15, albedo, 0.35 + 0.65 * inside);
         vec3 hemi = mix(uGround, uSky, 0.5 * n.y + 0.5) * 0.9;
         vec3 c = albedo / 3.14159 * (hemi + vec3(1.4) * max(dot(n, uLightDir), 0.0));
-        c = mix(c, uGround, smoothstep(70.0, 130.0, vDepth));
+        c = mix(c, uGround, smoothstep(90.0, 170.0, vDepth));
         // Dissolve the edges of the grid into the background, so the ground
         // does not read as a slab.
         float edge = min(uHalf[0] - abs(vP.x), uHalf[1] - abs(vP.z));
@@ -312,7 +312,7 @@ function waterMaterial(q: Quality, uTime: { value: number }) {
           float shore = 1.0 - smoothstep(0.03, 0.25, vDepth);
           c = mix(c, uFoam, shore * 0.55 * (0.5 + 0.5 * noise(p * 3.0 + uTime * 0.3)));
         #endif
-        c = mix(c, uFog, smoothstep(70.0, 130.0, vViewZ));
+        c = mix(c, uFog, smoothstep(90.0, 170.0, vViewZ));
         gl_FragColor = vec4(c, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -537,7 +537,8 @@ function CameraRig({ q }: { q: Quality }) {
     // and the camera stands to the south-east looking across it.
     const halfH = Math.tan(MathUtils.degToRad(15))
     const fit = 9.5 / (halfH * Math.max(0.55, aspect))
-    const radius = overlay ? Math.min(70, fit * 1.75) : Math.min(90, fit * 1.25 + 4)
+    // Portrait screens back off further so all four gauges stay in view.
+    const radius = overlay ? Math.min(70, fit * 1.75) : Math.min(110, fit * (aspect < 1 ? 1.6 : 1.25) + 4)
     const az = 0.55 + drag.current.az - p * 0.2
     const pol = 0.9 + drag.current.pol - p * 0.1
     const desired = new Vector3(
@@ -670,7 +671,7 @@ export default function RiverScene() {
           // One orchestrated moment: the flood's first pass. After it, the
           // scene redraws only when the reader drags the timeline or the camera.
           frameloop={playing && !reduced ? 'always' : 'demand'}
-          camera={{ fov: 30, near: 0.5, far: 160, position: [12, 14, 18] }}
+          camera={{ fov: 30, near: 0.5, far: 220, position: [12, 14, 18] }}
           touchAction="pan-y"
           wrapperProps={{ role: 'img', 'aria-label': sceneLabel }}
           fallback={fallback}
