@@ -38,11 +38,13 @@ export function Hero() {
       <div className="relative h-sceneSm lg:absolute lg:inset-0 lg:h-auto">
         {gl !== false ? (
           ready ? (
-            <Suspense fallback={<FloodVideo still className="h-full w-full opacity-30 lg:ml-auto lg:w-3/5 lg:py-16" />}>
+            <Suspense fallback={null}>
               <RiverScene />
             </Suspense>
           ) : (
-            <FloodVideo still className="h-full w-full opacity-30 lg:ml-auto lg:w-3/5 lg:py-16" />
+            // Nothing until the probe: an image here would become the page's
+            // largest paint and land after the JavaScript; the headline should.
+            null
           )
         ) : (
           <div className="h-full w-full lg:ml-auto lg:w-3/5 lg:py-16">
