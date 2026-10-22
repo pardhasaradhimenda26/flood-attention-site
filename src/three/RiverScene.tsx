@@ -350,25 +350,35 @@ function SectionLines({ ground }: { ground: Float32Array }) {
 const boardEls: (HTMLDivElement | null)[] = []
 const boardStage: (HTMLSpanElement | null)[] = []
 const boardFlow: (HTMLSpanElement | null)[] = []
+const boardRole: (HTMLSpanElement | null)[] = []
+/** Below this canvas width the boards drop role and discharge (the gauge table carries them). */
+const COMPACT_W = 640
 
 function BoardProjector() {
   const { camera, size } = useThree()
   const v = useMemo(() => new Vector3(), [])
   useFrame(() => {
     const t = useSite.getState().heroTime
+    // On a phone four full boards cannot fit along the valley without
+    // covering each other: show name and depth only, and hang every second
+    // board below its tower.
+    const compact = size.width < COMPACT_W
     towerAnchor.forEach((a, i) => {
       const el = boardEls[i]
       if (!el) return
       v.copy(a).project(camera)
       const inside = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05
       el.style.visibility = inside ? 'visible' : 'hidden'
-      el.style.transform = `translate(${((v.x + 1) / 2) * size.width}px, ${((1 - v.y) / 2) * size.height}px) translate(-50%, -100%)`
+      const below = compact && i % 2 === 1
+      el.style.transform = `translate(${((v.x + 1) / 2) * size.width}px, ${((1 - v.y) / 2) * size.height}px) translate(-50%, ${below ? '24px' : '-100%'})`
+      const role = boardRole[i]
+      if (role) role.style.display = compact ? 'none' : ''
       const id = stormGauges[i].id
       const s = boardStage[i]
       const f = boardFlow[i]
       if (s) s.textContent = `${fmt(depthAt(id, t), 2)} m`
       const qq = dischargeAt(id, t)
-      if (f) f.textContent = qq == null ? '' : `${fmt(qq, 0)} m³/s`
+      if (f) f.textContent = compact || qq == null ? '' : `${fmt(qq, 0)} m³/s`
     })
   })
   return null
@@ -386,7 +396,15 @@ function GaugeBoards() {
           className="absolute left-0 top-0 whitespace-nowrap border-hair border-foam-soft bg-abyss-raised px-1.5 py-0.5 text-micro text-foam"
           style={{ visibility: 'hidden', willChange: 'transform' }}
         >
-          <span className="num">{g.name}</span> <span className="text-foam-soft">{g.role}</span>
+          <span className="num">{g.name}</span>{' '}
+          <span
+            className="text-foam-soft"
+            ref={(el) => {
+              boardRole[i] = el
+            }}
+          >
+            {g.role}
+          </span>
           <br />
           <span
             className="num"
